@@ -23,14 +23,14 @@ A Java SDK for converting Markdown documents to various office formats including
 <dependency>
     <groupId>io.github.twwch</groupId>
     <artifactId>markdown2office</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.4</version>
 </dependency>
 ```
 
 ### Gradle
 
 ```gradle
-implementation 'io.github.twwch:markdown2office:1.0.0'
+implementation 'io.github.twwch:markdown2office:1.0.4'
 ```
 
 ## Usage
@@ -127,8 +127,8 @@ To release to Maven Central, you need to configure the following GitHub Secrets:
 
 1. Create and push a tag:
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.0.4
+git push origin v1.0.4
 ```
 
 2. The GitHub Action will automatically:

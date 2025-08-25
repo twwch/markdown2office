@@ -3,7 +3,7 @@ name: Release to Maven Central
 on:
   push:
     tags:
-      - 'v*'  # 触发条件：推送以 v 开头的 tag，如 v1.0.0
+      - 'v*'  # 触发条件：推送以 v 开头的 tag，如 v1.0.4
 
 jobs:
   release:
@@ -52,23 +52,16 @@ jobs:
         
         # 检查是否是 base64 编码
         if ! grep -q "BEGIN PGP" "$GPG_KEY_FILE"; then
-          echo "检测到 base64 编码的密钥，正在解码..."
           echo "$GPG_PRIVATE_KEY" | base64 --decode > "$GPG_KEY_FILE"
         fi
         
         # 导入密钥
-        gpg --batch --import "$GPG_KEY_FILE"
+        gpg --batch --import "$GPG_KEY_FILE" 2>&1 | grep -v "^gpg:" || true
         rm -f "$GPG_KEY_FILE"
         
         # 获取密钥 ID（短格式，用于签名）
         GPG_KEY_ID=$(gpg --list-secret-keys --keyid-format SHORT | grep sec | head -1 | awk '{print $2}' | cut -d'/' -f2)
-        echo "GPG Key ID: $GPG_KEY_ID"
         echo "GPG_KEY_ID=$GPG_KEY_ID" >> $GITHUB_OUTPUT
-        
-        # 列出所有密钥信息用于调试
-        echo "=== GPG 密钥信息 ==="
-        gpg --list-secret-keys
-        echo "===================="
         
         # 配置 GPG
         mkdir -p ~/.gnupg
@@ -83,12 +76,10 @@ jobs:
         gpgconf --launch gpg-agent
         
         # 测试签名
-        echo "测试 GPG 签名..."
-        echo "test" | gpg --batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --armor --detach-sign || {
-          echo "GPG 签名测试失败"
+        echo "test" | gpg --batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --armor --detach-sign > /dev/null 2>&1 || {
+          echo "错误: GPG 签名配置失败"
           exit 1
         }
-        echo "GPG 签名测试成功"
     
     - name: Configure Maven settings
       env:
