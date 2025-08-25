@@ -116,14 +116,14 @@ jobs:
         tag: v${{ steps.get_version.outputs.VERSION }}
         name: Release v${{ steps.get_version.outputs.VERSION }}
         body: |
-          ## Markdown2Office SDK v${{ steps.get_version.outputs.VERSION }}
+          ## OpenAI Java SDK v${{ steps.get_version.outputs.VERSION }}
           
           ### Maven Dependency
           
           ```xml
           <dependency>
               <groupId>io.github.twwch</groupId>
-              <artifactId>markdown2office</artifactId>
+              <artifactId>markdwon2office</artifactId>
               <version>${{ steps.get_version.outputs.VERSION }}</version>
           </dependency>
           ```
@@ -131,21 +131,13 @@ jobs:
           ### Gradle Dependency
           
           ```gradle
-          implementation 'io.github.twwch:markdown2office:${{ steps.get_version.outputs.VERSION }}'
+          implementation 'io.github.twwch:markdwon2office:${{ steps.get_version.outputs.VERSION }}'
           ```
-          
-          ### Supported Formats
-          
-          - Word (DOCX)
-          - Excel (XLSX)
-          - PDF
-          - Plain Text (TXT)
-          - Markdown (MD)
           
           ### Links
           
-          - [Maven Central](https://central.sonatype.com/artifact/io.github.twwch/markdown2office/${{ steps.get_version.outputs.VERSION }})
-          - [Documentation](https://github.com/twwch/markdown2office/blob/main/README.md)
+          - [Maven Central](https://central.sonatype.com/artifact/io.github.twwch/markdwon2office/${{ steps.get_version.outputs.VERSION }})
+          - [Documentation](https://github.com/twwch/markdwon2office/blob/main/README.md)
         draft: false
         prerelease: false
         generateReleaseNotes: true
