@@ -26,6 +26,7 @@ jobs:
         cache: maven
     
     - name: Import GPG key
+      id: import_gpg
       env:
         GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
@@ -59,20 +60,35 @@ jobs:
         gpg --batch --import "$GPG_KEY_FILE"
         rm -f "$GPG_KEY_FILE"
         
-        # 获取密钥 ID
-        GPG_KEY_ID=$(gpg --list-secret-keys --keyid-format LONG | grep sec | head -1 | awk '{print $2}' | cut -d'/' -f2)
+        # 获取密钥 ID（短格式，用于签名）
+        GPG_KEY_ID=$(gpg --list-secret-keys --keyid-format SHORT | grep sec | head -1 | awk '{print $2}' | cut -d'/' -f2)
         echo "GPG Key ID: $GPG_KEY_ID"
+        echo "GPG_KEY_ID=$GPG_KEY_ID" >> $GITHUB_OUTPUT
         
-        # 设置密钥信任级别
-        echo "$GPG_KEY_ID:6:" | gpg --import-ownertrust
+        # 列出所有密钥信息用于调试
+        echo "=== GPG 密钥信息 ==="
+        gpg --list-secret-keys
+        echo "===================="
         
         # 配置 GPG
-        echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+        mkdir -p ~/.gnupg
+        echo "use-agent" >> ~/.gnupg/gpg.conf
         echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+        echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+        chmod 600 ~/.gnupg/*
+        chmod 700 ~/.gnupg
         
         # 重启 GPG agent
         gpgconf --kill gpg-agent
         gpgconf --launch gpg-agent
+        
+        # 测试签名
+        echo "测试 GPG 签名..."
+        echo "test" | gpg --batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --armor --detach-sign || {
+          echo "GPG 签名测试失败"
+          exit 1
+        }
+        echo "GPG 签名测试成功"
     
     - name: Configure Maven settings
       env:
@@ -123,9 +139,10 @@ jobs:
       run: |
         mvn clean deploy \
           -DskipTests \
+          -Pgpg \
+          -Dgpg.keyname=${{ steps.import_gpg.outputs.GPG_KEY_ID }} \
           -Dgpg.passphrase="$GPG_PASSPHRASE" \
-          -Dgpg.pinentry-mode=loopback \
-          -Darguments=-Dgpg.passphrase="$GPG_PASSPHRASE"
+          -Dgpg.pinentry-mode=loopback
     
     - name: Create GitHub Release
       uses: ncipollo/release-action@v1
