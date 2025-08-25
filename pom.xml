@@ -24,7 +24,7 @@
     <developers>
         <developer>
             <name>twwch</name>
-            <email>your-email@example.com</email>
+            <email>twch97780@gmail.com</email>
             <organization>twwch</organization>
             <organizationUrl>https://github.com/twwch</organizationUrl>
         </developer>
@@ -43,7 +43,7 @@
         
         <!-- Dependencies versions -->
         <commonmark.version>0.21.0</commonmark.version>
-        <poi.version>5.2.4</poi.version>
+        <poi.version>5.4.1</poi.version>
         <itext.version>5.5.13.3</itext.version>
         <junit.version>5.10.0</junit.version>
         <slf4j.version>2.0.9</slf4j.version>
