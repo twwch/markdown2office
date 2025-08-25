@@ -34,7 +34,6 @@ test-output/
 *.docx
 *.pdf
 *.txt
-*.md
 product.md
 
 target
