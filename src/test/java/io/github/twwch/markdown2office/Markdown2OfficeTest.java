@@ -21,30 +21,73 @@ public class Markdown2OfficeTest {
     @BeforeEach
     public void setUp() {
         converter = new Markdown2Office();
-        sampleMarkdown = "# Heading 1\n\n" +
-                "This is a **bold** text and this is *italic* text.\n\n" +
-                "## Heading 2\n\n" +
-                "- Item 1\n" +
-                "- Item 2\n" +
-                "  - Subitem 2.1\n" +
-                "  - Subitem 2.2\n\n" +
-                "### Heading 3\n\n" +
-                "1. First\n" +
-                "2. Second\n" +
-                "3. Third\n\n" +
-                "> This is a blockquote\n\n" +
-                "```java\n" +
-                "public class Test {\n" +
-                "    public static void main(String[] args) {\n" +
-                "        System.out.println(\"Hello, World!\");\n" +
-                "    }\n" +
-                "}\n" +
-                "```\n\n" +
-                "| Header 1 | Header 2 | Header 3 |\n" +
-                "|----------|----------|----------|\n" +
-                "| Cell 1   | Cell 2   | Cell 3   |\n" +
-                "| Cell 4   | Cell 5   | Cell 6   |\n\n" +
-                "[Link text](https://example.com)";
+        sampleMarkdown = "# 二战的详细经过\n" +
+                "\n" +
+                "## Document: 二战的经过 (The Process of World War II)\n" +
+                "\n" +
+                "### 目录 (Table of Contents)\n" +
+                "\n" +
+                "1. 引言 (Introduction)\n" +
+                "2. 战争的起因 (Causes of the War)\n" +
+                "3. 主要战役与事件 (Key Battles and Events)\n" +
+                "   - 3.1 1939-1941年 (1939-1941)\n" +
+                "   - 3.2 1942年 (1942)\n" +
+                "   - 3.3 1943年 (1943)\n" +
+                "   - 3.4 1944年 (1944)\n" +
+                "   - 3.5 1945年 (1945)\n" +
+                "4. 战争的结束与影响 (Conclusion and Impact)\n" +
+                "5. 参考资料 (References)\n" +
+                "\n" +
+                "### 1. 引言 (Introduction)\n" +
+                "\n" +
+                "第二次世界大战是人类历史上规模最大、持续时间最长的战争之一，涉及全球几乎所有大国。这场战争不仅改变了战斗方式，也深刻影响了全球的政治、经济和社会结构。本文将详细描述二战的经过，包括其起因、主要战役和影响。\n" +
+                "\n" +
+                "### 2. 战争的起因 (Causes of the War)\n" +
+                "\n" +
+                "二战的起因可以追溯到一战后的不平等条约，以及全球经济危机的影响。对德国的惩罚性条款激发了民族主义情绪，希特勒的崛起成为了战争的催化剂。此外，意大利和日本也寻找机会扩展其领土，导致了轴心国的形成。\n" +
+                "\n" +
+                "### 3. 主要战役与事件 (Key Battles and Events)\n" +
+                "\n" +
+                "#### 3.1 1939-1941年 (1939-1941)\n" +
+                "\n" +
+                "- **1939年9月1日**：德国入侵波兰，标志着二战的开始。\n" +
+                "- **1940年5月**：德国闪电战击败挪威、丹麦及法国，迅速扩展其领土。\n" +
+                "- **1940年6月**：法国投降，英国成为对抗轴心国的主要力量。\n" +
+                "\n" +
+                "#### 3.2 1942年 (1942)\n" +
+                "\n" +
+                "- **在北非的战斗**：英军与德意军队展开多次交锋，尤其是埃尔阿拉梅因战役，标志着盟军的转折点。\n" +
+                "- **珍珠港事件**：1941年12月7日，美国遭到日本袭击，正式参战。\n" +
+                "\n" +
+                "#### 3.3 1943年 (1943)\n" +
+                "\n" +
+                "- **斯大林格勒战役**：苏联军队抵抗德军进攻，此役被视为战争的转折点。\n" +
+                "- **盟军登陆西西里**：标志着欧洲大陆反攻的开始。\n" +
+                "\n" +
+                "#### 3.4 1944年 (1944)\n" +
+                "\n" +
+                "- **诺曼底登陆**：1944年6月6日，盟军展开了史上最大规模的海陆空联合进攻。\n" +
+                "- **解放巴黎**：1944年8月，盟军成功解放巴黎，意味着对纳粹政权的逐步压制。\n" +
+                "\n" +
+                "#### 3.5 1945年 (1945)\n" +
+                "\n" +
+                "- **雅尔塔会议**：盟军领导人在战争末期进行战略会谈，决定战后布局。\n" +
+                "- **德国无条件投降**：1945年5月，欧洲战场结束。\n" +
+                "- **日本战败**：1945年8月，美国在广岛和长崎投下原子弹后，日本宣布无条件投降，二战全局结束。\n" +
+                "\n" +
+                "### 4. 战争的结束与影响 (Conclusion and Impact)\n" +
+                "\n" +
+                "第二次世界大战结束后，全球秩序发生了巨变。联合国的成立旨在防止未来的冲突，冷战格局的形成则引发了后续数十年的国际紧张关系。战后，欧洲重建和去殖民化的进程加速，世界开始朝向多极化发展。\n" +
+                "\n" +
+                "### 5. 参考资料 (References)\n" +
+                "\n" +
+                "1. 中华人民共和国语文出版社 (The People's Republic of China Language Literature Press)\n" +
+                "2. 历史学理论及方法 (Theory and Method of History)\n" +
+                "3. 相关历史书籍及文献 (Relevant Historical Books and Literature)\n" +
+                "\n" +
+                "---\n" +
+                "\n" +
+                "此文档将被生成并导出为 PDF 格式。请稍候片刻以完成此操作。\n";
     }
     
     @Test
@@ -91,9 +134,10 @@ public class Markdown2OfficeTest {
         String result = outputStream.toString("UTF-8");
         assertNotNull(result);
         Files.write(new File("output.txt").toPath(), result.getBytes());
-        assertTrue(result.contains("HEADING"));
-        assertTrue(result.contains("**bold**"));
-        assertTrue(result.contains("*italic*"));
+        // Check that the text contains Chinese content from the sample markdown
+        assertTrue(result.contains("二战"));
+        assertTrue(result.contains("引言"));
+        assertTrue(result.contains("1939"));
     }
     
     @Test

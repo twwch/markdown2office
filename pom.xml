@@ -7,7 +7,7 @@
 
     <groupId>io.github.twwch</groupId>
     <artifactId>markdown2office</artifactId>
-    <version>1.0.4</version>
+    <version>1.0.6</version>
     <packaging>jar</packaging>
 
     <name>Markdown2Office</name>
@@ -94,6 +94,12 @@
             <groupId>com.itextpdf.tool</groupId>
             <artifactId>xmlworker</artifactId>
             <version>${itext.version}</version>
+        </dependency>
+        <!-- iText Asian fonts support for Chinese/Japanese/Korean -->
+        <dependency>
+            <groupId>com.itextpdf</groupId>
+            <artifactId>itext-asian</artifactId>
+            <version>5.2.0</version>
         </dependency>
 
         <!-- Logging -->

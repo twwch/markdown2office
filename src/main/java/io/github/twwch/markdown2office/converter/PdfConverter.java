@@ -1,6 +1,7 @@
 package io.github.twwch.markdown2office.converter;
 
 import com.itextpdf.text.*;
+import com.itextpdf.text.pdf.BaseFont;
 import com.itextpdf.text.pdf.PdfPCell;
 import com.itextpdf.text.pdf.PdfPTable;
 import com.itextpdf.text.pdf.PdfWriter;
@@ -23,6 +24,7 @@ public class PdfConverter implements Converter {
     private Font codeFont;
     private Font[] headingFonts;
     private int listLevel;
+    private BaseFont chineseFont;
     
     public PdfConverter() {
         this.parser = new MarkdownParser();
@@ -31,18 +33,53 @@ public class PdfConverter implements Converter {
     }
     
     private void initFonts() {
-        normalFont = new Font(Font.FontFamily.HELVETICA, 12, Font.NORMAL);
-        boldFont = new Font(Font.FontFamily.HELVETICA, 12, Font.BOLD);
-        italicFont = new Font(Font.FontFamily.HELVETICA, 12, Font.ITALIC);
-        codeFont = new Font(Font.FontFamily.COURIER, 11, Font.NORMAL, BaseColor.DARK_GRAY);
+        try {
+            // Try to create a font that supports Chinese characters
+            // Use iText's built-in Asian font support
+            chineseFont = BaseFont.createFont("STSongStd-Light", "UniGB-UCS2-H", BaseFont.NOT_EMBEDDED);
+        } catch (Exception e1) {
+            try {
+                // Fallback: try system font path on macOS
+                chineseFont = BaseFont.createFont("/System/Library/Fonts/PingFang.ttc,0", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
+            } catch (Exception e2) {
+                try {
+                    // Second fallback: try Helvetica World font (includes more Unicode)
+                    chineseFont = BaseFont.createFont("/System/Library/Fonts/Helvetica.ttc,0", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
+                } catch (Exception e3) {
+                    // Final fallback: use default font
+                    chineseFont = null;
+                }
+            }
+        }
         
-        headingFonts = new Font[6];
-        headingFonts[0] = new Font(Font.FontFamily.HELVETICA, 24, Font.BOLD);
-        headingFonts[1] = new Font(Font.FontFamily.HELVETICA, 20, Font.BOLD);
-        headingFonts[2] = new Font(Font.FontFamily.HELVETICA, 18, Font.BOLD);
-        headingFonts[3] = new Font(Font.FontFamily.HELVETICA, 16, Font.BOLD);
-        headingFonts[4] = new Font(Font.FontFamily.HELVETICA, 14, Font.BOLD);
-        headingFonts[5] = new Font(Font.FontFamily.HELVETICA, 13, Font.BOLD);
+        if (chineseFont != null) {
+            normalFont = new Font(chineseFont, 12, Font.NORMAL);
+            boldFont = new Font(chineseFont, 12, Font.BOLD);
+            italicFont = new Font(chineseFont, 12, Font.ITALIC);
+            codeFont = new Font(chineseFont, 11, Font.NORMAL, BaseColor.DARK_GRAY);
+            
+            headingFonts = new Font[6];
+            headingFonts[0] = new Font(chineseFont, 24, Font.BOLD);
+            headingFonts[1] = new Font(chineseFont, 20, Font.BOLD);
+            headingFonts[2] = new Font(chineseFont, 18, Font.BOLD);
+            headingFonts[3] = new Font(chineseFont, 16, Font.BOLD);
+            headingFonts[4] = new Font(chineseFont, 14, Font.BOLD);
+            headingFonts[5] = new Font(chineseFont, 13, Font.BOLD);
+        } else {
+            // Use default fonts if Chinese font is not available
+            normalFont = new Font(Font.FontFamily.HELVETICA, 12, Font.NORMAL);
+            boldFont = new Font(Font.FontFamily.HELVETICA, 12, Font.BOLD);
+            italicFont = new Font(Font.FontFamily.HELVETICA, 12, Font.ITALIC);
+            codeFont = new Font(Font.FontFamily.COURIER, 11, Font.NORMAL, BaseColor.DARK_GRAY);
+            
+            headingFonts = new Font[6];
+            headingFonts[0] = new Font(Font.FontFamily.HELVETICA, 24, Font.BOLD);
+            headingFonts[1] = new Font(Font.FontFamily.HELVETICA, 20, Font.BOLD);
+            headingFonts[2] = new Font(Font.FontFamily.HELVETICA, 18, Font.BOLD);
+            headingFonts[3] = new Font(Font.FontFamily.HELVETICA, 16, Font.BOLD);
+            headingFonts[4] = new Font(Font.FontFamily.HELVETICA, 14, Font.BOLD);
+            headingFonts[5] = new Font(Font.FontFamily.HELVETICA, 13, Font.BOLD);
+        }
     }
     
     @Override
@@ -151,7 +188,8 @@ public class PdfConverter implements Converter {
         p.setSpacingBefore(10);
         p.setSpacingAfter(10);
         
-        Chunk quoteBar = new Chunk("│ ", new Font(Font.FontFamily.HELVETICA, 12, Font.NORMAL, BaseColor.GRAY));
+        Font quoteFont = chineseFont != null ? new Font(chineseFont, 12, Font.NORMAL, BaseColor.GRAY) : new Font(Font.FontFamily.HELVETICA, 12, Font.NORMAL, BaseColor.GRAY);
+        Chunk quoteBar = new Chunk("│ ", quoteFont);
         p.add(quoteBar);
         
         Node child = blockQuote.getFirstChild();
@@ -258,7 +296,8 @@ public class PdfConverter implements Converter {
             } else if (node instanceof Link) {
                 StringBuilder text = new StringBuilder();
                 extractText(node, text);
-                Chunk linkChunk = new Chunk(text.toString(), new Font(Font.FontFamily.HELVETICA, 12, Font.UNDERLINE, BaseColor.BLUE));
+                Font linkFont = chineseFont != null ? new Font(chineseFont, 12, Font.UNDERLINE, BaseColor.BLUE) : new Font(Font.FontFamily.HELVETICA, 12, Font.UNDERLINE, BaseColor.BLUE);
+                Chunk linkChunk = new Chunk(text.toString(), linkFont);
                 linkChunk.setAnchor(((Link) node).getDestination());
                 paragraph.add(linkChunk);
             } else if (node instanceof org.commonmark.node.Image) {

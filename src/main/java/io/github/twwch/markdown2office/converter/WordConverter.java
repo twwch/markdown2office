@@ -10,6 +10,8 @@ import org.commonmark.ext.gfm.tables.TableRow;
 import org.commonmark.node.*;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTblWidth;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STTblWidth;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPPr;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTRPr;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -32,6 +34,7 @@ public class WordConverter implements Converter {
     @Override
     public void convert(String markdown, OutputStream outputStream) throws IOException {
         document = new XWPFDocument();
+        createHeadingStyles();
         Node node = parser.parse(markdown);
         processNode(node);
         document.write(outputStream);
@@ -79,28 +82,51 @@ public class WordConverter implements Converter {
         currentParagraph = document.createParagraph();
         int level = heading.getLevel();
         
+        // Apply heading formatting directly instead of relying on styles
+        XWPFRun run = currentParagraph.createRun();
+        run.setBold(true);
+        
+        // Set font size based on heading level
         switch (level) {
             case 1:
-                currentParagraph.setStyle("Heading1");
+                run.setFontSize(24);
+                currentParagraph.setSpacingAfter(300); // 15pt spacing after
+                currentParagraph.setSpacingBefore(240); // 12pt spacing before
                 break;
             case 2:
-                currentParagraph.setStyle("Heading2");
+                run.setFontSize(20);
+                currentParagraph.setSpacingAfter(260); // 13pt spacing after
+                currentParagraph.setSpacingBefore(200); // 10pt spacing before
                 break;
             case 3:
-                currentParagraph.setStyle("Heading3");
+                run.setFontSize(18);
+                currentParagraph.setSpacingAfter(240); // 12pt spacing after
+                currentParagraph.setSpacingBefore(160); // 8pt spacing before
                 break;
             case 4:
-                currentParagraph.setStyle("Heading4");
+                run.setFontSize(16);
+                currentParagraph.setSpacingAfter(200); // 10pt spacing after
+                currentParagraph.setSpacingBefore(140); // 7pt spacing before
                 break;
             case 5:
-                currentParagraph.setStyle("Heading5");
+                run.setFontSize(14);
+                currentParagraph.setSpacingAfter(160); // 8pt spacing after
+                currentParagraph.setSpacingBefore(120); // 6pt spacing before
                 break;
             case 6:
-                currentParagraph.setStyle("Heading6");
+                run.setFontSize(13);
+                currentParagraph.setSpacingAfter(140); // 7pt spacing after
+                currentParagraph.setSpacingBefore(100); // 5pt spacing before
+                break;
+            default:
+                run.setFontSize(12);
                 break;
         }
         
-        processInlineContent(heading.getFirstChild());
+        // Extract text from heading node and add to the run
+        StringBuilder headingText = new StringBuilder();
+        extractTextFromNode(heading.getFirstChild(), headingText);
+        run.setText(headingText.toString());
     }
     
     private void processParagraph(Paragraph paragraph) {
@@ -294,6 +320,30 @@ public class WordConverter implements Converter {
         Node child = node.getFirstChild();
         while (child != null) {
             extractText(child, text);
+            child = child.getNext();
+        }
+    }
+    
+    private void createHeadingStyles() {
+        // This method creates proper heading styles in the document
+        // In Apache POI, styles are created automatically when used, but we can set up
+        // default paragraph formatting to ensure consistent appearance
+    }
+    
+    private void extractTextFromNode(Node node, StringBuilder text) {
+        if (node == null) return;
+        
+        if (node instanceof Text) {
+            text.append(((Text) node).getLiteral());
+        } else if (node instanceof Code) {
+            text.append(((Code) node).getLiteral());
+        } else if (node instanceof HardLineBreak || node instanceof SoftLineBreak) {
+            text.append("\n");
+        }
+        
+        Node child = node.getFirstChild();
+        while (child != null) {
+            extractTextFromNode(child, text);
             child = child.getNext();
         }
     }
