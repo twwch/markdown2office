@@ -138,6 +138,7 @@ public class PdfConverter implements Converter {
         p.setFont(headingFonts[level]);
         p.setSpacingBefore(10);
         p.setSpacingAfter(10);
+        p.setLeading(headingFonts[level].getSize() * 1.5f); // Set line height
         
         addInlineContent(heading.getFirstChild(), p, headingFonts[level]);
         pdfDocument.add(p);
@@ -146,6 +147,8 @@ public class PdfConverter implements Converter {
     private void processParagraph(org.commonmark.node.Paragraph paragraph) throws DocumentException {
         com.itextpdf.text.Paragraph p = new com.itextpdf.text.Paragraph();
         p.setSpacingAfter(10);
+        p.setLeading(18f); // Set line height for better readability
+        p.setAlignment(com.itextpdf.text.Element.ALIGN_JUSTIFIED_ALL); // Justify text for better spacing
         addInlineContent(paragraph.getFirstChild(), p, normalFont);
         pdfDocument.add(p);
     }
@@ -162,6 +165,7 @@ public class PdfConverter implements Converter {
                 extractText(item.getFirstChild(), itemText);
                 
                 com.itextpdf.text.ListItem listItem = new com.itextpdf.text.ListItem(itemText.toString(), normalFont);
+                listItem.setLeading(18f); // Set line height for list items
                 list.add(listItem);
                 
                 Node child = item.getFirstChild();
@@ -187,6 +191,7 @@ public class PdfConverter implements Converter {
         p.setIndentationLeft(30);
         p.setSpacingBefore(10);
         p.setSpacingAfter(10);
+        p.setLeading(18f); // Set line height for block quotes
         
         Font quoteFont = chineseFont != null ? new Font(chineseFont, 12, Font.NORMAL, BaseColor.GRAY) : new Font(Font.FontFamily.HELVETICA, 12, Font.NORMAL, BaseColor.GRAY);
         Chunk quoteBar = new Chunk("│ ", quoteFont);
@@ -204,19 +209,32 @@ public class PdfConverter implements Converter {
     }
     
     private void processCodeBlock(FencedCodeBlock codeBlock) throws DocumentException {
-        com.itextpdf.text.Paragraph p = new com.itextpdf.text.Paragraph(codeBlock.getLiteral(), codeFont);
+        com.itextpdf.text.Paragraph p = new com.itextpdf.text.Paragraph();
         p.setIndentationLeft(20);
         p.setSpacingBefore(10);
         p.setSpacingAfter(10);
+        p.setLeading(16f); // Set line height for code blocks
+        
+        // Add code with character spacing
+        Chunk codeChunk = new Chunk(codeBlock.getLiteral(), codeFont);
+        codeChunk.setCharacterSpacing(0.15f); // Add character spacing for code
+        p.add(codeChunk);
+        
         pdfDocument.add(p);
     }
     
     private void processCodeBlock(IndentedCodeBlock codeBlock) throws DocumentException {
-        com.itextpdf.text.Paragraph p = new com.itextpdf.text.Paragraph(codeBlock.getLiteral(), codeFont);
+        com.itextpdf.text.Paragraph p = new com.itextpdf.text.Paragraph();
         p.setIndentationLeft(20);
         p.setSpacingBefore(10);
         p.setSpacingAfter(10);
-        // Background color not directly supported for paragraphs in iText5
+        p.setLeading(16f); // Set line height for code blocks
+        
+        // Add code with character spacing
+        Chunk codeChunk = new Chunk(codeBlock.getLiteral(), codeFont);
+        codeChunk.setCharacterSpacing(0.15f); // Add character spacing for code
+        p.add(codeChunk);
+        
         pdfDocument.add(p);
     }
     
@@ -244,7 +262,13 @@ public class PdfConverter implements Converter {
             for (int i = 0; i < tableData.size(); i++) {
                 java.util.List<String> rowData = tableData.get(i);
                 for (String cellText : rowData) {
-                    PdfPCell cell = new PdfPCell(new Phrase(cellText, (hasHeader && i == 0) ? boldFont : normalFont));
+                    // Create phrase with character spacing
+                    Phrase phrase = new Phrase();
+                    Chunk chunk = new Chunk(cellText, (hasHeader && i == 0) ? boldFont : normalFont);
+                    chunk.setCharacterSpacing(0.2f); // Add character spacing in tables
+                    phrase.add(chunk);
+                    
+                    PdfPCell cell = new PdfPCell(phrase);
                     cell.setPadding(5);
                     
                     if (hasHeader && i == 0) {
@@ -282,23 +306,34 @@ public class PdfConverter implements Converter {
     private void addInlineContent(Node node, com.itextpdf.text.Paragraph paragraph, Font defaultFont) {
         while (node != null) {
             if (node instanceof Text) {
-                paragraph.add(new Chunk(((Text) node).getLiteral(), defaultFont));
+                String text = ((Text) node).getLiteral();
+                // Add small space between characters for better readability
+                Chunk chunk = new Chunk(text, defaultFont);
+                chunk.setCharacterSpacing(0.2f); // Add character spacing
+                paragraph.add(chunk);
             } else if (node instanceof Emphasis) {
                 StringBuilder text = new StringBuilder();
                 extractText(node, text);
-                paragraph.add(new Chunk(text.toString(), italicFont));
+                Chunk chunk = new Chunk(text.toString(), italicFont);
+                chunk.setCharacterSpacing(0.2f);
+                paragraph.add(chunk);
             } else if (node instanceof StrongEmphasis) {
                 StringBuilder text = new StringBuilder();
                 extractText(node, text);
-                paragraph.add(new Chunk(text.toString(), boldFont));
+                Chunk chunk = new Chunk(text.toString(), boldFont);
+                chunk.setCharacterSpacing(0.2f);
+                paragraph.add(chunk);
             } else if (node instanceof Code) {
-                paragraph.add(new Chunk(((Code) node).getLiteral(), codeFont));
+                Chunk chunk = new Chunk(((Code) node).getLiteral(), codeFont);
+                chunk.setCharacterSpacing(0.15f); // Slightly less spacing for code
+                paragraph.add(chunk);
             } else if (node instanceof Link) {
                 StringBuilder text = new StringBuilder();
                 extractText(node, text);
                 Font linkFont = chineseFont != null ? new Font(chineseFont, 12, Font.UNDERLINE, BaseColor.BLUE) : new Font(Font.FontFamily.HELVETICA, 12, Font.UNDERLINE, BaseColor.BLUE);
                 Chunk linkChunk = new Chunk(text.toString(), linkFont);
                 linkChunk.setAnchor(((Link) node).getDestination());
+                linkChunk.setCharacterSpacing(0.2f);
                 paragraph.add(linkChunk);
             } else if (node instanceof org.commonmark.node.Image) {
                 paragraph.add(new Chunk("[Image: " + ((org.commonmark.node.Image) node).getTitle() + "]", defaultFont));

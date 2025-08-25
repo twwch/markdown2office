@@ -87,7 +87,17 @@ public class Markdown2OfficeTest {
                 "\n" +
                 "---\n" +
                 "\n" +
-                "此文档将被生成并导出为 PDF 格式。请稍候片刻以完成此操作。\n";
+                "\n" +
+                "- Convert Markdown to multiple formats:\n" +
+                "  - Word (DOCX)\n" +
+                "  - Excel (XLSX)\n" +
+                "  - PDF\n" +
+                "  - Plain Text (TXT)\n" +
+                "  - Markdown (MD)\n" +
+                "- Preserve Markdown structure and formatting\n" +
+                "- Support for tables, lists, code blocks, and more\n" +
+                "- Easy-to-use API\n" +
+                "- Command-line interface\n";
     }
     
     @Test
