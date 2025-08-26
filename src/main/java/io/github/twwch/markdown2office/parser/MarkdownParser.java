@@ -1,9 +1,9 @@
 package io.github.twwch.markdown2office.parser;
 
 import org.commonmark.Extension;
+import org.commonmark.ext.gfm.strikethrough.StrikethroughExtension;
 import org.commonmark.ext.gfm.tables.TablesExtension;
 import org.commonmark.ext.task.list.items.TaskListItemsExtension;
-import org.commonmark.ext.gfm.strikethrough.StrikethroughExtension;
 import org.commonmark.node.Node;
 import org.commonmark.parser.Parser;
 

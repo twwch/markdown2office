@@ -1,29 +1,23 @@
 package io.github.twwch.markdown2office.converter;
 
 import io.github.twwch.markdown2office.parser.MarkdownParser;
-import org.apache.poi.xwpf.usermodel.*;
 import org.apache.poi.util.Units;
-import org.commonmark.ext.gfm.tables.TableBlock;
-import org.commonmark.ext.gfm.tables.TableBody;
-import org.commonmark.ext.gfm.tables.TableCell;
-import org.commonmark.ext.gfm.tables.TableHead;
-import org.commonmark.ext.gfm.tables.TableRow;
+import org.apache.poi.xwpf.usermodel.*;
 import org.commonmark.ext.gfm.strikethrough.Strikethrough;
+import org.commonmark.ext.gfm.tables.*;
 import org.commonmark.ext.task.list.items.TaskListItemMarker;
 import org.commonmark.node.*;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTblWidth;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STTblWidth;
-import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPPr;
-import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTRPr;
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.InputStream;
-import java.net.URL;
-import java.net.HttpURLConnection;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.math.BigInteger;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
