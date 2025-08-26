@@ -1,12 +1,15 @@
 package io.github.twwch.markdown2office.converter;
 
 import com.itextpdf.text.*;
+import com.itextpdf.text.Image;
 import com.itextpdf.text.pdf.BaseFont;
 import com.itextpdf.text.pdf.PdfPCell;
 import com.itextpdf.text.pdf.PdfPTable;
 import com.itextpdf.text.pdf.PdfWriter;
 import io.github.twwch.markdown2office.parser.MarkdownParser;
 import org.commonmark.ext.gfm.tables.*;
+import org.commonmark.ext.gfm.strikethrough.Strikethrough;
+import org.commonmark.ext.task.list.items.TaskListItemMarker;
 import org.commonmark.node.*;
 import org.commonmark.node.ListItem;
 
@@ -148,7 +151,7 @@ public class PdfConverter implements Converter {
         com.itextpdf.text.Paragraph p = new com.itextpdf.text.Paragraph();
         p.setSpacingAfter(10);
         p.setLeading(18f); // Set line height for better readability
-        p.setAlignment(com.itextpdf.text.Element.ALIGN_JUSTIFIED_ALL); // Justify text for better spacing
+        p.setAlignment(com.itextpdf.text.Element.ALIGN_LEFT); // Left align text
         addInlineContent(paragraph.getFirstChild(), p, normalFont);
         pdfDocument.add(p);
     }
@@ -164,7 +167,15 @@ public class PdfConverter implements Converter {
                 StringBuilder itemText = new StringBuilder();
                 extractText(item.getFirstChild(), itemText);
                 
-                com.itextpdf.text.ListItem listItem = new com.itextpdf.text.ListItem(itemText.toString(), normalFont);
+                // Check for task list items
+                String prefix = "";
+                Node firstChild = item.getFirstChild();
+                if (firstChild instanceof TaskListItemMarker) {
+                    TaskListItemMarker marker = (TaskListItemMarker) firstChild;
+                    prefix = marker.isChecked() ? "[✓] " : "[ ] ";
+                }
+                
+                com.itextpdf.text.ListItem listItem = new com.itextpdf.text.ListItem(prefix + itemText.toString(), normalFont);
                 listItem.setLeading(18f); // Set line height for list items
                 list.add(listItem);
                 
@@ -327,6 +338,14 @@ public class PdfConverter implements Converter {
                 Chunk chunk = new Chunk(((Code) node).getLiteral(), codeFont);
                 chunk.setCharacterSpacing(0.15f); // Slightly less spacing for code
                 paragraph.add(chunk);
+            } else if (node instanceof Strikethrough) {
+                StringBuilder text = new StringBuilder();
+                extractText(node, text);
+                Font strikeFont = new Font(defaultFont);
+                strikeFont.setStyle(Font.STRIKETHRU);
+                Chunk chunk = new Chunk(text.toString(), strikeFont);
+                chunk.setCharacterSpacing(0.2f);
+                paragraph.add(chunk);
             } else if (node instanceof Link) {
                 StringBuilder text = new StringBuilder();
                 extractText(node, text);
@@ -336,7 +355,44 @@ public class PdfConverter implements Converter {
                 linkChunk.setCharacterSpacing(0.2f);
                 paragraph.add(linkChunk);
             } else if (node instanceof org.commonmark.node.Image) {
-                paragraph.add(new Chunk("[Image: " + ((org.commonmark.node.Image) node).getTitle() + "]", defaultFont));
+                org.commonmark.node.Image imageNode = (org.commonmark.node.Image) node;
+                String imageUrl = imageNode.getDestination();
+                
+                try {
+                    // Try to load image from URL or file path
+                    Image image = null;
+                    if (imageUrl != null && !imageUrl.isEmpty()) {
+                        if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
+                            // Load from URL
+                            image = Image.getInstance(new java.net.URL(imageUrl));
+                        } else {
+                            // Try as local file
+                            java.io.File imageFile = new java.io.File(imageUrl);
+                            if (imageFile.exists()) {
+                                image = Image.getInstance(imageUrl);
+                            }
+                        }
+                    }
+                    
+                    if (image != null) {
+                        // Scale image to fit page width if necessary
+                        float pageWidth = pdfDocument.getPageSize().getWidth() - pdfDocument.leftMargin() - pdfDocument.rightMargin();
+                        if (image.getScaledWidth() > pageWidth) {
+                            image.scaleToFit(pageWidth, Float.MAX_VALUE);
+                        }
+                        
+                        // Add image as a new chunk
+                        paragraph.add(new Chunk(image, 0, 0, true));
+                    } else {
+                        // Fallback if image cannot be loaded
+                        String altText = imageNode.getTitle() != null ? imageNode.getTitle() : "Image";
+                        paragraph.add(new Chunk("[" + altText + "]", defaultFont));
+                    }
+                } catch (Exception e) {
+                    // If image loading fails, show alt text
+                    String altText = imageNode.getTitle() != null ? imageNode.getTitle() : "Image";
+                    paragraph.add(new Chunk("[" + altText + ": " + imageUrl + "]", defaultFont));
+                }
             } else if (node instanceof HardLineBreak || node instanceof SoftLineBreak) {
                 paragraph.add(Chunk.NEWLINE);
             } else {

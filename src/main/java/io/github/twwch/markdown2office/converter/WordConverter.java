@@ -2,11 +2,14 @@ package io.github.twwch.markdown2office.converter;
 
 import io.github.twwch.markdown2office.parser.MarkdownParser;
 import org.apache.poi.xwpf.usermodel.*;
+import org.apache.poi.util.Units;
 import org.commonmark.ext.gfm.tables.TableBlock;
 import org.commonmark.ext.gfm.tables.TableBody;
 import org.commonmark.ext.gfm.tables.TableCell;
 import org.commonmark.ext.gfm.tables.TableHead;
 import org.commonmark.ext.gfm.tables.TableRow;
+import org.commonmark.ext.gfm.strikethrough.Strikethrough;
+import org.commonmark.ext.task.list.items.TaskListItemMarker;
 import org.commonmark.node.*;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTblWidth;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STTblWidth;
@@ -15,6 +18,11 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTRPr;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.InputStream;
+import java.net.URL;
+import java.net.HttpURLConnection;
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
@@ -143,11 +151,23 @@ public class WordConverter implements Converter {
                 currentParagraph = document.createParagraph();
                 currentParagraph.setIndentationLeft(400 * listLevel);
                 
-                if (ordered) {
-                    currentParagraph.setNumID(BigInteger.valueOf(1));
-                } else {
-                    XWPFRun run = currentParagraph.createRun();
-                    run.setText("• ");
+                // Check for task list items
+                Node firstChild = item.getFirstChild();
+                boolean isTaskItem = false;
+                if (firstChild instanceof TaskListItemMarker) {
+                    TaskListItemMarker marker = (TaskListItemMarker) firstChild;
+                    XWPFRun checkRun = currentParagraph.createRun();
+                    checkRun.setText(marker.isChecked() ? "[✓] " : "[ ] ");
+                    isTaskItem = true;
+                }
+                
+                if (!isTaskItem) {
+                    if (ordered) {
+                        currentParagraph.setNumID(BigInteger.valueOf(1));
+                    } else {
+                        XWPFRun run = currentParagraph.createRun();
+                        run.setText("• ");
+                    }
                 }
                 
                 Node child = item.getFirstChild();
@@ -294,6 +314,12 @@ public class WordConverter implements Converter {
                 XWPFRun run = currentParagraph.createRun();
                 run.setFontFamily("Courier New");
                 run.setText(((Code) node).getLiteral());
+            } else if (node instanceof Strikethrough) {
+                XWPFRun run = currentParagraph.createRun();
+                run.setStrikeThrough(true);
+                StringBuilder text = new StringBuilder();
+                extractText(node, text);
+                run.setText(text.toString());
             } else if (node instanceof Link) {
                 XWPFRun run = currentParagraph.createRun();
                 run.setUnderline(UnderlinePatterns.SINGLE);
@@ -302,8 +328,105 @@ public class WordConverter implements Converter {
                 extractText(node, text);
                 run.setText(text.toString());
             } else if (node instanceof Image) {
+                Image imageNode = (Image) node;
+                String imageUrl = imageNode.getDestination();
                 XWPFRun run = currentParagraph.createRun();
-                run.setText("[Image: " + ((Image) node).getTitle() + "]");
+                
+                try {
+                    InputStream imageStream = null;
+                    String imageType = null;
+                    int width = 0;
+                    int height = 0;
+                    
+                    if (imageUrl != null && !imageUrl.isEmpty()) {
+                        if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
+                            // Load from URL
+                            URL url = new URL(imageUrl);
+                            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                            conn.setRequestMethod("GET");
+                            conn.setConnectTimeout(5000);
+                            conn.setReadTimeout(5000);
+                            imageStream = conn.getInputStream();
+                            
+                            // Determine image type from URL
+                            String urlLower = imageUrl.toLowerCase();
+                            if (urlLower.endsWith(".png")) {
+                                imageType = "png";
+                            } else if (urlLower.endsWith(".jpg") || urlLower.endsWith(".jpeg")) {
+                                imageType = "jpeg";
+                            } else if (urlLower.endsWith(".gif")) {
+                                imageType = "gif";
+                            } else {
+                                imageType = "png"; // default
+                            }
+                            
+                            // Get image dimensions
+                            BufferedImage bimg = ImageIO.read(url);
+                            if (bimg != null) {
+                                width = bimg.getWidth();
+                                height = bimg.getHeight();
+                            }
+                        } else {
+                            // Try as local file
+                            java.io.File imageFile = new java.io.File(imageUrl);
+                            if (imageFile.exists()) {
+                                imageStream = new java.io.FileInputStream(imageFile);
+                                
+                                // Determine image type from file extension
+                                String fileName = imageFile.getName().toLowerCase();
+                                if (fileName.endsWith(".png")) {
+                                    imageType = "png";
+                                } else if (fileName.endsWith(".jpg") || fileName.endsWith(".jpeg")) {
+                                    imageType = "jpeg";
+                                } else if (fileName.endsWith(".gif")) {
+                                    imageType = "gif";
+                                } else {
+                                    imageType = "png"; // default
+                                }
+                                
+                                // Get image dimensions
+                                BufferedImage bimg = ImageIO.read(imageFile);
+                                if (bimg != null) {
+                                    width = bimg.getWidth();
+                                    height = bimg.getHeight();
+                                }
+                            }
+                        }
+                    }
+                    
+                    if (imageStream != null && imageType != null) {
+                        // Determine picture type
+                        int pictureType = XWPFDocument.PICTURE_TYPE_PNG;
+                        if ("jpeg".equals(imageType)) {
+                            pictureType = XWPFDocument.PICTURE_TYPE_JPEG;
+                        } else if ("gif".equals(imageType)) {
+                            pictureType = XWPFDocument.PICTURE_TYPE_GIF;
+                        }
+                        
+                        // Calculate scaled dimensions to fit page (max width 500px)
+                        int maxWidth = 500;
+                        int scaledWidth = width;
+                        int scaledHeight = height;
+                        
+                        if (width > maxWidth) {
+                            scaledWidth = maxWidth;
+                            scaledHeight = (height * maxWidth) / width;
+                        }
+                        
+                        // Add picture to document
+                        run.addPicture(imageStream, pictureType, imageUrl,
+                                      Units.toEMU(scaledWidth), Units.toEMU(scaledHeight));
+                        imageStream.close();
+                    } else {
+                        // Fallback if image cannot be loaded
+                        String altText = imageNode.getTitle() != null ? imageNode.getTitle() : "Image";
+                        run.setText("[" + altText + "]");
+                    }
+                } catch (Exception e) {
+                    // If image loading fails, show alt text
+                    String altText = imageNode.getTitle() != null ? imageNode.getTitle() : "Image";
+                    run.setText("[" + altText + ": " + imageUrl + "]");
+                }
             } else if (node instanceof HardLineBreak || node instanceof SoftLineBreak) {
                 currentParagraph.createRun().addBreak();
             } else {

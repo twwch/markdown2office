@@ -84,10 +84,6 @@ public class Markdown2OfficeTest {
                 "1. 中华人民共和国语文出版社 (The People's Republic of China Language Literature Press)\n" +
                 "2. 历史学理论及方法 (Theory and Method of History)\n" +
                 "3. 相关历史书籍及文献 (Relevant Historical Books and Literature)\n" +
-                "\n" +
-                "---\n" +
-                "\n" +
-                "\n" +
                 "- Convert Markdown to multiple formats:\n" +
                 "  - Word (DOCX)\n" +
                 "  - Excel (XLSX)\n" +
@@ -97,7 +93,16 @@ public class Markdown2OfficeTest {
                 "- Preserve Markdown structure and formatting\n" +
                 "- Support for tables, lists, code blocks, and more\n" +
                 "- Easy-to-use API\n" +
-                "- Command-line interface\n";
+                "- Command-line interface\n" +
+                "\n" +
+                "![测试图片](https://cdn-aws.iweaver.ai/docx/2025/08/26/9da968e7-08eb-4a68-9a7d-bc45ca673612/1084621569.png)\n\n" +
+                "| 姓名 | 年龄 | 职业 | 城市 |\n" +
+                "|------|------|------|------|\n" +
+                "| 张三 | 28   | 工程师 | 北京 |\n" +
+                "| 李四 | 32   | 设计师 | 上海 |\n" +
+                "| 王五 | 25   | 教师 | 广州 |\n" +
+                "| 赵六 | 45   | 医生 | 深圳 |"
+        ;
     }
     
     @Test
