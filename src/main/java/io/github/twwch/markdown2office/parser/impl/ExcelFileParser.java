@@ -9,6 +9,7 @@ import org.apache.poi.ooxml.POIXMLProperties;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -28,23 +29,87 @@ public class ExcelFileParser implements FileParser {
     
     @Override
     public ParsedDocument parse(File file) throws IOException {
-        try (FileInputStream fis = new FileInputStream(file)) {
-            ParsedDocument parsedDoc = parse(fis, file.getName());
-            // Set file size if available
-            if (parsedDoc.getDocumentMetadata() != null) {
-                parsedDoc.getDocumentMetadata().setFileSize(file.length());
+        // Use BufferedInputStream to allow mark/reset for format detection
+        try (BufferedInputStream bis = new BufferedInputStream(new FileInputStream(file))) {
+            // Mark the stream to allow reset after detection
+            bis.mark(8);
+            
+            // Read first few bytes to detect format
+            byte[] header = new byte[8];
+            int bytesRead = bis.read(header);
+            bis.reset();
+            
+            // Detect format from header
+            Workbook workbook;
+            if (bytesRead >= 4 && header[0] == (byte) 0xD0 && header[1] == (byte) 0xCF && 
+                header[2] == (byte) 0x11 && header[3] == (byte) 0xE0) {
+                // Old Excel format (.xls)
+                workbook = new HSSFWorkbook(bis);
+            } else if (bytesRead >= 2 && header[0] == 'P' && header[1] == 'K') {
+                // New Excel format (.xlsx) - ZIP format
+                workbook = new XSSFWorkbook(bis);
+            } else {
+                // Try WorkbookFactory as fallback
+                try {
+                    workbook = WorkbookFactory.create(bis);
+                } catch (Exception e) {
+                    throw new IOException("Cannot determine Excel format for file: " + file.getName(), e);
+                }
             }
-            return parsedDoc;
+            
+            try {
+                ParsedDocument parsedDoc = extractContent(workbook, file.getName());
+                // Set file size if available
+                if (parsedDoc.getDocumentMetadata() != null) {
+                    parsedDoc.getDocumentMetadata().setFileSize(file.length());
+                }
+                return parsedDoc;
+            } finally {
+                workbook.close();
+            }
         }
     }
     
     @Override
     public ParsedDocument parse(InputStream inputStream, String fileName) throws IOException {
+        // Buffer the input stream to allow mark/reset
+        BufferedInputStream bis = inputStream instanceof BufferedInputStream ? 
+            (BufferedInputStream) inputStream : new BufferedInputStream(inputStream);
+        
+        // Mark the stream to allow reset after detection
+        bis.mark(8);
+        
+        // Read first few bytes to detect format
+        byte[] header = new byte[8];
+        int bytesRead = bis.read(header);
+        bis.reset();
+        
+        // Detect format from header
         Workbook workbook;
-        if (fileName.toLowerCase().endsWith(".xlsx")) {
-            workbook = new XSSFWorkbook(inputStream);
+        if (bytesRead >= 4 && header[0] == (byte) 0xD0 && header[1] == (byte) 0xCF && 
+            header[2] == (byte) 0x11 && header[3] == (byte) 0xE0) {
+            // Old Excel format (.xls)
+            workbook = new HSSFWorkbook(bis);
+        } else if (bytesRead >= 2 && header[0] == 'P' && header[1] == 'K') {
+            // New Excel format (.xlsx) - ZIP format  
+            workbook = new XSSFWorkbook(bis);
         } else {
-            workbook = new HSSFWorkbook(inputStream);
+            // Try WorkbookFactory as fallback
+            try {
+                workbook = WorkbookFactory.create(bis);
+            } catch (Exception e) {
+                // Last resort: guess based on filename extension
+                if (fileName != null && 
+                    (fileName.toLowerCase().endsWith(".xlsx") || 
+                     fileName.toLowerCase().endsWith(".xlsm") || 
+                     fileName.toLowerCase().endsWith(".xlsb"))) {
+                    // New Excel formats
+                    workbook = new XSSFWorkbook(bis);
+                } else {
+                    // Default to old Excel format (.xls) or unknown
+                    workbook = new HSSFWorkbook(bis);
+                }
+            }
         }
         
         try {

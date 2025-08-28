@@ -170,6 +170,27 @@ public class EnhancedParsingTest {
 
         System.out.println(document.toMarkdown());
     }
+
+
+    @Test
+    public void testCsvExtraction() throws IOException {
+        // Test Excel parser with an existing file if available
+        File excelFile = new File("demo1.csv");
+
+        if (!excelFile.exists()) {
+            System.out.println("Warning: demo.csv not found, skipping csv test");
+            assertTrue(universalParser.supports("test.csv"));
+            return;
+        }
+
+        // Parse Excel
+        ParsedDocument document = universalParser.parse(excelFile);
+
+
+        DocumentMetadata metadata = document.getDocumentMetadata();
+
+        System.out.println(document.toMarkdown());
+    }
     
     @Test
     public void testPowerPointSlideExtraction() throws IOException {

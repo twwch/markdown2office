@@ -91,6 +91,45 @@ public class UniversalFileParser implements FileParser {
             
             return result;
             
+        } catch (IOException e) {
+            // Check if this is a CSV file that's actually Excel
+            if (parser instanceof io.github.twwch.markdown2office.parser.impl.CsvFileParser &&
+                e.getMessage() != null && e.getMessage().contains("not a valid CSV file")) {
+                
+                logger.info("File '{}' appears to be Excel format despite .csv extension, trying Excel parser", fileName);
+                
+                // Try with Excel parser
+                try {
+                    io.github.twwch.markdown2office.parser.impl.ExcelFileParser excelParser = 
+                        new io.github.twwch.markdown2office.parser.impl.ExcelFileParser();
+                    
+                    ParsedDocument result = excelParser.parse(file);
+                    
+                    if (result != null) {
+                        // Add parsing metadata
+                        result.addMetadata("Parser Used", "ExcelFileParser (auto-detected)");
+                        result.addMetadata("File Size", String.valueOf(file.length()));
+                        result.addMetadata("File Path", file.getAbsolutePath());
+                        result.addMetadata("Note", "File had .csv extension but was Excel format");
+                        
+                        logger.info("Successfully parsed file '{}' as Excel - extracted {} characters", 
+                            fileName, result.getContent() != null ? result.getContent().length() : 0);
+                    }
+                    
+                    return result;
+                } catch (Exception excelException) {
+                    logger.error("Failed to parse '{}' as Excel: {}", fileName, excelException.getMessage());
+                    // Fall back to original error
+                    throw new IOException("Failed to parse file: " + fileName + 
+                        " (tried CSV parser and Excel parser)", e);
+                }
+            }
+            
+            // For other IOExceptions, just rethrow
+            logger.error("Error parsing file '{}' with {}: {}", 
+                fileName, parser.getClass().getSimpleName(), e.getMessage(), e);
+            throw new IOException("Failed to parse file: " + fileName, e);
+            
         } catch (Exception e) {
             logger.error("Error parsing file '{}' with {}: {}", 
                 fileName, parser.getClass().getSimpleName(), e.getMessage(), e);
