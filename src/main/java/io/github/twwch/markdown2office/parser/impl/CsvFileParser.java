@@ -3,7 +3,9 @@ package io.github.twwch.markdown2office.parser.impl;
 import com.opencsv.CSVReader;
 import com.opencsv.CSVReaderBuilder;
 import com.opencsv.exceptions.CsvException;
+import io.github.twwch.markdown2office.parser.DocumentMetadata;
 import io.github.twwch.markdown2office.parser.FileParser;
+import io.github.twwch.markdown2office.parser.PageContent;
 import io.github.twwch.markdown2office.parser.ParsedDocument;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -380,27 +382,37 @@ public class CsvFileParser implements FileParser {
         ParsedDocument parsedDoc = new ParsedDocument();
         parsedDoc.setFileType(ParsedDocument.FileType.CSV);
         
+        // Create and populate enhanced metadata (consistent with Excel)
+        DocumentMetadata metadata = new DocumentMetadata();
+        metadata.setFileType(ParsedDocument.FileType.CSV);
+        metadata.setFileName(fileName);
+        
         try (CSVReader csvReader = new CSVReaderBuilder(reader).build()) {
             List<String[]> allRows = csvReader.readAll();
             
             if (allRows.isEmpty()) {
                 parsedDoc.setContent("");
                 parsedDoc.setMarkdownContent("");
+                metadata.setTotalPages(0);
+                metadata.setTotalSheets(0);
+                parsedDoc.setDocumentMetadata(metadata);
                 return parsedDoc;
             }
             
+            // Set title from filename (remove extension)
+            String title = fileName != null && !fileName.isEmpty() ? 
+                fileName.replaceAll("\\.[^.]+$", "") : "CSV Data";
+            parsedDoc.setTitle(title);
+            metadata.setTitle(title);
+            
             // Create table structure
             ParsedDocument.ParsedTable parsedTable = new ParsedDocument.ParsedTable();
-            
-            // Set file name as table title if available
-            if (fileName != null && !fileName.isEmpty()) {
-                String title = fileName.replaceAll("\\.[^.]+$", ""); // Remove extension
-                parsedTable.setTitle(title);
-            }
+            parsedTable.setTitle(title);
             
             // First row as headers
+            List<String> headers = null;
             if (!allRows.isEmpty()) {
-                List<String> headers = Arrays.asList(allRows.get(0));
+                headers = Arrays.asList(allRows.get(0));
                 parsedTable.setHeaders(headers);
             }
             
@@ -415,30 +427,76 @@ public class CsvFileParser implements FileParser {
             // Add table to parsed document
             parsedDoc.addTable(parsedTable);
             
+            // Create a PageContent object to be consistent with Excel
+            PageContent pageContent = new PageContent(1);
+            
             // Generate content and markdown
             StringBuilder content = new StringBuilder();
             StringBuilder markdown = new StringBuilder();
             
-            // Add title if available
-            if (parsedTable.getTitle() != null && !parsedTable.getTitle().isEmpty()) {
-                content.append("Table: ").append(parsedTable.getTitle()).append("\n");
-                markdown.append("# ").append(parsedTable.getTitle()).append("\n\n");
-            }
+            // Add title
+            markdown.append("# ").append(title).append("\n\n");
+            markdown.append("### ").append(title).append("\n\n");
             
-            // Add all rows to content (tab-separated)
+            // Add table to markdown
+            String tableMarkdown = parsedTable.toMarkdown();
+            markdown.append(tableMarkdown);
+            
+            // Set raw text for the page (tab-separated for consistency)
+            StringBuilder rawText = new StringBuilder();
             for (String[] row : allRows) {
+                rawText.append(String.join("\t", row)).append("\n");
                 content.append(String.join("\t", row)).append("\n");
             }
             
-            // Add table to markdown
-            markdown.append(parsedTable.toMarkdown());
+            // Set page content
+            pageContent.setRawText(rawText.toString());
+            pageContent.setMarkdownContent(markdown.toString());
+            pageContent.addTable(parsedTable);
             
+            // Add headers as headings for the page
+            if (headers != null) {
+                pageContent.addHeading(title);
+            }
+            
+            // Calculate word and character counts
+            int totalWords = 0;
+            int totalChars = 0;
+            for (String[] row : allRows) {
+                for (String cell : row) {
+                    if (cell != null) {
+                        totalWords += cell.split("\\s+").length;
+                        totalChars += cell.length();
+                    }
+                }
+            }
+            
+            pageContent.setWordCount(totalWords);
+            pageContent.setCharacterCount(totalChars);
+            
+            // Add the page to the document
+            parsedDoc.addPage(pageContent);
+            
+            // Set document-level content
             parsedDoc.setContent(content.toString());
             parsedDoc.setMarkdownContent(markdown.toString());
             
-            // Add metadata
+            // Update metadata
+            metadata.setTotalPages(1);
+            metadata.setTotalSheets(1); // CSV is like one sheet
+            metadata.setTotalWords(totalWords);
+            metadata.setTotalCharacters(totalChars);
+            metadata.setTotalCharactersWithSpaces(content.toString().length());
+            metadata.setTotalTables(1);
+            
+            parsedDoc.setDocumentMetadata(metadata);
+            
+            // Add legacy metadata for backward compatibility
             parsedDoc.addMetadata("Total Rows", String.valueOf(allRows.size()));
             parsedDoc.addMetadata("Total Columns", String.valueOf(allRows.isEmpty() ? 0 : allRows.get(0).length));
+            parsedDoc.addMetadata("Page Count", "1");
+            parsedDoc.addMetadata("Word Count", String.valueOf(totalWords));
+            parsedDoc.addMetadata("Character Count", String.valueOf(totalChars));
             
             return parsedDoc;
             

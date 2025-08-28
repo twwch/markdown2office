@@ -130,11 +130,17 @@ public class ExcelFileParser implements FileParser {
         ParsedDocument parsedDoc = new ParsedDocument();
         parsedDoc.setFileType(ParsedDocument.FileType.EXCEL);
         
+        // Set title from filename (remove extension) as default
+        String defaultTitle = fileName != null && !fileName.isEmpty() ? 
+            fileName.replaceAll("\\.[^.]+$", "") : "Excel Document";
+        parsedDoc.setTitle(defaultTitle);
+        
         // Create and populate enhanced metadata
         DocumentMetadata metadata = new DocumentMetadata();
         metadata.setFileName(fileName);
         metadata.setFileType(ParsedDocument.FileType.EXCEL);
         metadata.setTotalSheets(workbook.getNumberOfSheets());
+        metadata.setTitle(defaultTitle); // Set default title first
         
         // Extract properties if available (for XLSX files)
         if (workbook instanceof XSSFWorkbook) {
@@ -143,7 +149,8 @@ public class ExcelFileParser implements FileParser {
                 POIXMLProperties properties = xssfWorkbook.getProperties();
                 if (properties != null && properties.getCoreProperties() != null) {
                     POIXMLProperties.CoreProperties coreProps = properties.getCoreProperties();
-                    if (coreProps.getTitle() != null) {
+                    if (coreProps.getTitle() != null && !coreProps.getTitle().isEmpty()) {
+                        // Override with document title if available
                         metadata.setTitle(coreProps.getTitle());
                         parsedDoc.setTitle(coreProps.getTitle());
                     }
