@@ -4,18 +4,25 @@ import io.github.twwch.markdown2office.parser.DocumentMetadata;
 import io.github.twwch.markdown2office.parser.FileParser;
 import io.github.twwch.markdown2office.parser.PageContent;
 import io.github.twwch.markdown2office.parser.ParsedDocument;
+import org.apache.poi.hwpf.HWPFDocument;
+import org.apache.poi.hwpf.extractor.WordExtractor;
+import org.apache.poi.hwpf.usermodel.Range;
+import org.apache.poi.hwpf.usermodel.Paragraph;
+import org.apache.poi.hwpf.usermodel.CharacterRun;
+import org.apache.poi.hwpf.usermodel.Table;
+import org.apache.poi.hwpf.usermodel.TableRow;
+import org.apache.poi.hwpf.usermodel.TableCell;
 import org.apache.poi.ooxml.POIXMLProperties;
+import org.apache.poi.poifs.filesystem.FileMagic;
 import org.apache.poi.xwpf.usermodel.*;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Date;
 
 /**
- * Parser for Word documents (DOCX)
+ * Parser for Word documents (DOC and DOCX)
  */
 public class WordFileParser implements FileParser {
     
@@ -38,8 +45,22 @@ public class WordFileParser implements FileParser {
     
     @Override
     public ParsedDocument parse(InputStream inputStream, String fileName) throws IOException {
-        try (XWPFDocument document = new XWPFDocument(inputStream)) {
-            return extractContent(document, fileName);
+        // Buffer the input stream to allow mark/reset
+        BufferedInputStream bufferedStream = new BufferedInputStream(inputStream);
+        bufferedStream.mark(8);
+        
+        // Detect file format
+        FileMagic fileMagic = FileMagic.valueOf(bufferedStream);
+        bufferedStream.reset();
+        
+        if (fileMagic == FileMagic.OLE2) {
+            // This is a DOC file (old format)
+            return parseDocFile(bufferedStream, fileName);
+        } else if (fileMagic == FileMagic.OOXML) {
+            // This is a DOCX file (new format)
+            return parseDocxFile(bufferedStream, fileName);
+        } else {
+            throw new IOException("Unsupported Word file format: " + fileMagic);
         }
     }
     
@@ -50,7 +71,168 @@ public class WordFileParser implements FileParser {
         return lower.endsWith(".docx") || lower.endsWith(".doc");
     }
     
-    private ParsedDocument extractContent(XWPFDocument document, String fileName) {
+    /**
+     * Parse DOC file (old format)
+     */
+    private ParsedDocument parseDocFile(InputStream inputStream, String fileName) throws IOException {
+        try (HWPFDocument document = new HWPFDocument(inputStream)) {
+            return extractDocContent(document, fileName);
+        }
+    }
+    
+    /**
+     * Parse DOCX file (new format)
+     */
+    private ParsedDocument parseDocxFile(InputStream inputStream, String fileName) throws IOException {
+        try (XWPFDocument document = new XWPFDocument(inputStream)) {
+            return extractDocxContent(document, fileName);
+        }
+    }
+    
+    /**
+     * Extract content from DOC file
+     */
+    private ParsedDocument extractDocContent(HWPFDocument document, String fileName) {
+        ParsedDocument parsedDoc = new ParsedDocument();
+        parsedDoc.setFileType(ParsedDocument.FileType.WORD);
+        
+        // Create and populate metadata
+        DocumentMetadata metadata = new DocumentMetadata();
+        metadata.setFileName(fileName);
+        metadata.setFileType(ParsedDocument.FileType.WORD);
+        
+        // Extract document properties
+        if (document.getSummaryInformation() != null) {
+            var sumInfo = document.getSummaryInformation();
+            if (sumInfo.getTitle() != null) {
+                metadata.setTitle(sumInfo.getTitle());
+                parsedDoc.setTitle(sumInfo.getTitle());
+            }
+            if (sumInfo.getAuthor() != null) {
+                metadata.setAuthor(sumInfo.getAuthor());
+                parsedDoc.setAuthor(sumInfo.getAuthor());
+            }
+            if (sumInfo.getSubject() != null) {
+                metadata.setSubject(sumInfo.getSubject());
+            }
+            if (sumInfo.getKeywords() != null) {
+                metadata.setKeywords(sumInfo.getKeywords());
+            }
+            if (sumInfo.getCreateDateTime() != null) {
+                metadata.setCreationDate(sumInfo.getCreateDateTime());
+            }
+            if (sumInfo.getLastSaveDateTime() != null) {
+                metadata.setModificationDate(sumInfo.getLastSaveDateTime());
+            }
+        }
+        
+        StringBuilder allContent = new StringBuilder();
+        StringBuilder allMarkdown = new StringBuilder();
+        
+        // Use WordExtractor for simpler text extraction
+        WordExtractor extractor = new WordExtractor(document);
+        
+        // Get paragraphs
+        String[] paragraphs = extractor.getParagraphText();
+        
+        // Create pages (simple division for DOC files)
+        List<PageContent> pages = new ArrayList<>();
+        PageContent currentPage = new PageContent(1);
+        StringBuilder pageContent = new StringBuilder();
+        StringBuilder pageMarkdown = new StringBuilder();
+        
+        int paragraphsPerPage = 50;
+        int paragraphCount = 0;
+        int totalWords = 0;
+        int totalChars = 0;
+        
+        for (String paragraph : paragraphs) {
+            if (paragraph != null && !paragraph.trim().isEmpty()) {
+                String trimmed = paragraph.trim();
+                
+                // Add to content
+                pageContent.append(trimmed).append("\n");
+                allContent.append(trimmed).append("\n");
+                
+                // Check if it's a heading (simple heuristic)
+                if (isLikelyHeading(trimmed)) {
+                    pageMarkdown.append("## ").append(trimmed).append("\n\n");
+                    allMarkdown.append("## ").append(trimmed).append("\n\n");
+                    currentPage.addHeading("## " + trimmed);
+                } else {
+                    pageMarkdown.append(trimmed).append("\n\n");
+                    allMarkdown.append(trimmed).append("\n\n");
+                    if (trimmed.length() > 10) {
+                        currentPage.addParagraph(trimmed);
+                    }
+                }
+                
+                // Count words and characters
+                String[] words = trimmed.split("\\s+");
+                totalWords += words.length;
+                totalChars += trimmed.length();
+                
+                paragraphCount++;
+                
+                // Check if we should start a new page
+                if (paragraphCount >= paragraphsPerPage) {
+                    currentPage.setRawText(pageContent.toString());
+                    currentPage.setMarkdownContent(pageMarkdown.toString());
+                    currentPage.setWordCount(countWords(pageContent.toString()));
+                    currentPage.setCharacterCount(pageContent.toString().length());
+                    pages.add(currentPage);
+                    
+                    // Start new page
+                    currentPage = new PageContent(pages.size() + 1);
+                    pageContent = new StringBuilder();
+                    pageMarkdown = new StringBuilder();
+                    paragraphCount = 0;
+                }
+            }
+        }
+        
+        // Add the last page if it has content
+        if (pageContent.length() > 0) {
+            currentPage.setRawText(pageContent.toString());
+            currentPage.setMarkdownContent(pageMarkdown.toString());
+            currentPage.setWordCount(countWords(pageContent.toString()));
+            currentPage.setCharacterCount(pageContent.toString().length());
+            pages.add(currentPage);
+        }
+        
+        // Add pages to document
+        for (PageContent page : pages) {
+            parsedDoc.addPage(page);
+        }
+        
+        // Update metadata
+        metadata.setTotalWords(totalWords);
+        metadata.setTotalCharacters(totalChars);
+        metadata.setTotalPages(pages.size());
+        
+        parsedDoc.setDocumentMetadata(metadata);
+        parsedDoc.setContent(allContent.toString());
+        parsedDoc.setMarkdownContent(allMarkdown.toString());
+        
+        // Add legacy metadata
+        parsedDoc.addMetadata("Pages", String.valueOf(pages.size()));
+        parsedDoc.addMetadata("Word Count", String.valueOf(totalWords));
+        parsedDoc.addMetadata("Character Count", String.valueOf(totalChars));
+        
+        // Clean up
+        try {
+            extractor.close();
+        } catch (IOException e) {
+            // Log and continue, already extracted content
+        }
+        
+        return parsedDoc;
+    }
+    
+    /**
+     * Extract content from DOCX file (existing implementation)
+     */
+    private ParsedDocument extractDocxContent(XWPFDocument document, String fileName) {
         ParsedDocument parsedDoc = new ParsedDocument();
         parsedDoc.setFileType(ParsedDocument.FileType.WORD);
         
@@ -439,5 +621,27 @@ public class WordFileParser implements FileParser {
                text.matches("^[(（][一二三四五六七八九十0-9]+[)）].*") || // (一), (1), etc.
                text.matches("^[①②③④⑤⑥⑦⑧⑨⑩].*") || // ①标题, etc.
                (text.length() < 30 && text.matches(".*[概述|简介|介绍|总结|结论|背景|目的|方法|结果]$")); // Common heading endings
+    }
+    
+    private boolean isLikelyHeading(String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+        
+        // Simple heuristics for headings
+        return text.length() < 100 && (
+            text.matches("^[0-9]+\\..*") || // Numbered headings
+            text.matches("^Chapter \\d+.*") || // Chapter headings
+            text.matches("^Section \\d+.*") || // Section headings
+            isChineseHeading(text) || // Chinese headings
+            text.equals(text.toUpperCase()) && text.length() < 50 // All caps short text
+        );
+    }
+    
+    private int countWords(String text) {
+        if (text == null || text.trim().isEmpty()) {
+            return 0;
+        }
+        return text.trim().split("\\s+").length;
     }
 }

@@ -7,7 +7,7 @@
 
     <groupId>io.github.twwch</groupId>
     <artifactId>markdown2office</artifactId>
-    <version>1.0.12</version>
+    <version>1.0.13</version>
     <packaging>jar</packaging>
 
     <name>Markdown2Office</name>
