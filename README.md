@@ -23,14 +23,14 @@ A Java SDK for converting Markdown documents to various office formats including
 <dependency>
     <groupId>io.github.twwch</groupId>
     <artifactId>markdown2office</artifactId>
-    <version>1.0.13</version>
+    <version>1.0.14</version>
 </dependency>
 ```
 
 ### Gradle
 
 ```gradle
-implementation 'io.github.twwch:markdown2office:1.0.13'
+implementation 'io.github.twwch:markdown2office:1.0.14'
 ```
 
 ## Usage
@@ -127,8 +127,8 @@ To release to Maven Central, you need to configure the following GitHub Secrets:
 
 1. Create and push a tag:
 ```bash
-git tag v1.0.13
-git push origin v1.0.13
+git tag v1.0.14
+git push origin v1.0.14
 ```
 
 2. The GitHub Action will automatically:
@@ -275,7 +275,7 @@ ExcelFileParser excelParser = new ExcelFileParser();
 ParsedDocument excelDoc = excelParser.parse("spreadsheet.xlsx");
 ```
 
-#### PDF Hidden Layer Filtering (New in 1.0.13)
+#### PDF Hidden Layer Filtering (New in 1.0.14)
 
 The PDF parser now supports filtering out hidden layers, watermarks, and invisible text that may appear in some PDFs (e.g., from recruitment platforms like BOSS Zhipin).
 

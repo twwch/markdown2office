@@ -2,6 +2,8 @@ package io.github.twwch.markdown2office.parser.impl;
 
 import io.github.twwch.markdown2office.parser.FileParser;
 import io.github.twwch.markdown2office.parser.ParsedDocument;
+import io.github.twwch.markdown2office.parser.PageContent;
+import io.github.twwch.markdown2office.parser.DocumentMetadata;
 import org.commonmark.node.FencedCodeBlock;
 import org.commonmark.node.Heading;
 import org.commonmark.node.Node;
@@ -60,7 +62,13 @@ public class MarkdownFileParser implements FileParser {
         ParsedDocument parsedDoc = new ParsedDocument();
         parsedDoc.setFileType(ParsedDocument.FileType.MARKDOWN);
         
+        // Create and populate metadata
+        DocumentMetadata metadata = new DocumentMetadata();
+        metadata.setFileName(fileName);
+        metadata.setFileType(ParsedDocument.FileType.MARKDOWN);
+        
         StringBuilder content = new StringBuilder();
+        List<String> lines = new ArrayList<>();
         
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
@@ -68,6 +76,7 @@ public class MarkdownFileParser implements FileParser {
             String line;
             while ((line = reader.readLine()) != null) {
                 content.append(line).append("\n");
+                lines.add(line);
             }
             
         } catch (IOException e) {
@@ -88,19 +97,23 @@ public class MarkdownFileParser implements FileParser {
         parsedDoc.setContent(plainTextContent);
         parsedDoc.setMarkdownContent(markdownContent); // Keep original markdown
         
-        // Extract structured information
-        extractStructuredData(document, parsedDoc, markdownContent);
+        // Extract structured information and create pages
+        List<PageContent> pages = createPages(document, lines, markdownContent);
+        parsedDoc.setPages(pages);
         
-        // Set title from filename if not found in content
-        if (parsedDoc.getTitle() == null && fileName != null && !fileName.isEmpty()) {
-            String title = fileName.replaceAll("\\.[^.]+$", ""); // Remove extension
-            parsedDoc.setTitle(title);
-        }
+        // Extract title and set in metadata
+        extractTitle(document, parsedDoc, fileName, metadata);
         
         // Add metadata
+        metadata.setTotalWords(plainTextContent.split("\\s+").length);
+        metadata.setTotalCharacters(markdownContent.length());
+        metadata.setTotalPages(pages.size());
+        parsedDoc.setDocumentMetadata(metadata);
+        
         parsedDoc.addMetadata("File Type", "Markdown");
-        parsedDoc.addMetadata("Line Count", String.valueOf(markdownContent.split("\n").length));
+        parsedDoc.addMetadata("Line Count", String.valueOf(lines.size()));
         parsedDoc.addMetadata("Character Count", String.valueOf(markdownContent.length()));
+        parsedDoc.addMetadata("Page Count", String.valueOf(pages.size()));
         
         // Extract tables using regex (CommonMark might not parse all table formats)
         extractTables(markdownContent, parsedDoc);
@@ -108,28 +121,69 @@ public class MarkdownFileParser implements FileParser {
         return parsedDoc;
     }
     
-    private void extractStructuredData(Node document, ParsedDocument parsedDoc, String originalMarkdown) {
-        // Walk through the AST to extract structured data
+    private void extractTitle(Node document, ParsedDocument parsedDoc, String fileName, DocumentMetadata metadata) {
+        // Walk through the AST to find title
+        Node node = document.getFirstChild();
+        String title = null;
+        
+        while (node != null && title == null) {
+            if (node instanceof Heading) {
+                Heading heading = (Heading) node;
+                if (heading.getLevel() == 1) {
+                    // Use first H1 as title
+                    TextContentRenderer textRenderer = TextContentRenderer.builder().build();
+                    title = textRenderer.render(heading).trim();
+                }
+            }
+            node = node.getNext();
+        }
+        
+        // Set title from content or filename
+        if (title == null && fileName != null && !fileName.isEmpty()) {
+            title = fileName.replaceAll("\\.[^.]+$", ""); // Remove extension
+        }
+        
+        if (title != null) {
+            parsedDoc.setTitle(title);
+            metadata.setTitle(title);
+        }
+    }
+    
+    private List<PageContent> createPages(Node document, List<String> lines, String markdownContent) {
+        List<PageContent> pages = new ArrayList<>();
+        
+        // For markdown files, put all content in a single page
+        PageContent page = new PageContent(1);
+        
+        // Extract plain text content
+        TextContentRenderer textRenderer = TextContentRenderer.builder().build();
+        String plainTextContent = textRenderer.render(document);
+        
+        page.setRawText(plainTextContent);
+        page.setMarkdownContent(markdownContent);
+        page.setWordCount(plainTextContent.split("\\s+").length);
+        page.setCharacterCount(plainTextContent.length());
+        
+        // Walk through the document to extract structured data
         Node node = document.getFirstChild();
         while (node != null) {
             if (node instanceof Heading) {
                 Heading heading = (Heading) node;
-                if (heading.getLevel() == 1 && parsedDoc.getTitle() == null) {
-                    // Use first H1 as title
-                    TextContentRenderer textRenderer = TextContentRenderer.builder().build();
-                    String title = textRenderer.render(heading).trim();
-                    parsedDoc.setTitle(title);
-                }
-            } else if (node instanceof FencedCodeBlock) {
-                FencedCodeBlock codeBlock = (FencedCodeBlock) node;
-                String info = codeBlock.getInfo();
-                if (info != null && !info.isEmpty()) {
-                    parsedDoc.addMetadata("Code Language", info);
+                String headingText = textRenderer.render(heading).trim();
+                String headingMarkdown = "#".repeat(heading.getLevel()) + " " + headingText;
+                page.addHeading(headingMarkdown);
+            } else if (!(node instanceof FencedCodeBlock)) {
+                // Extract paragraphs
+                String nodeContent = textRenderer.render(node).trim();
+                if (nodeContent != null && !nodeContent.isEmpty() && nodeContent.length() > 10) {
+                    page.addParagraph(nodeContent);
                 }
             }
-            
             node = node.getNext();
         }
+        
+        pages.add(page);
+        return pages;
     }
     
     private void extractTables(String markdownContent, ParsedDocument parsedDoc) {

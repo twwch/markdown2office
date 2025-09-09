@@ -2,11 +2,15 @@ package io.github.twwch.markdown2office.parser.impl;
 
 import io.github.twwch.markdown2office.parser.FileParser;
 import io.github.twwch.markdown2office.parser.ParsedDocument;
+import io.github.twwch.markdown2office.parser.PageContent;
+import io.github.twwch.markdown2office.parser.DocumentMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Parser for plain text files (TXT)
@@ -47,9 +51,14 @@ public class TextFileParser implements FileParser {
         ParsedDocument parsedDoc = new ParsedDocument();
         parsedDoc.setFileType(ParsedDocument.FileType.TEXT);
         
+        // Create and populate metadata
+        DocumentMetadata metadata = new DocumentMetadata();
+        metadata.setFileName(fileName);
+        metadata.setFileType(ParsedDocument.FileType.TEXT);
+        
+        List<String> lines = new ArrayList<>();
         StringBuilder content = new StringBuilder();
         String firstLine = null;
-        int lineCount = 0;
         
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
@@ -60,7 +69,7 @@ public class TextFileParser implements FileParser {
                     firstLine = line.trim();
                 }
                 content.append(line).append("\n");
-                lineCount++;
+                lines.add(line);
             }
             
         } catch (IOException e) {
@@ -71,12 +80,17 @@ public class TextFileParser implements FileParser {
         String textContent = content.toString();
         
         // Set title from filename or first line
+        String title = null;
         if (fileName != null && !fileName.isEmpty()) {
-            String title = fileName.replaceAll("\\.[^.]+$", ""); // Remove extension
-            parsedDoc.setTitle(title);
+            title = fileName.replaceAll("\\.[^.]+$", ""); // Remove extension
         } else if (firstLine != null && firstLine.length() <= 100) {
             // Use first line as title if it's reasonably short
-            parsedDoc.setTitle(firstLine);
+            title = firstLine;
+        }
+        
+        if (title != null) {
+            parsedDoc.setTitle(title);
+            metadata.setTitle(title);
         }
         
         // For plain text, content and markdown are essentially the same
@@ -87,10 +101,20 @@ public class TextFileParser implements FileParser {
         String markdownContent = convertToMarkdown(textContent, parsedDoc.getTitle());
         parsedDoc.setMarkdownContent(markdownContent);
         
+        // Create pages
+        List<PageContent> pages = createPages(lines, textContent);
+        parsedDoc.setPages(pages);
+        
         // Add metadata
+        metadata.setTotalWords(textContent.split("\\s+").length);
+        metadata.setTotalCharacters(textContent.length());
+        metadata.setTotalPages(pages.size());
+        parsedDoc.setDocumentMetadata(metadata);
+        
         parsedDoc.addMetadata("File Type", "Plain Text");
-        parsedDoc.addMetadata("Line Count", String.valueOf(lineCount));
+        parsedDoc.addMetadata("Line Count", String.valueOf(lines.size()));
         parsedDoc.addMetadata("Character Count", String.valueOf(textContent.length()));
+        parsedDoc.addMetadata("Page Count", String.valueOf(pages.size()));
         
         return parsedDoc;
     }
@@ -159,5 +183,40 @@ public class TextFileParser implements FileParser {
         }
         
         return false;
+    }
+    
+    private List<PageContent> createPages(List<String> lines, String fullContent) {
+        List<PageContent> pages = new ArrayList<>();
+        
+        // For text files, put all content in a single page
+        PageContent page = new PageContent(1);
+        
+        if (fullContent == null || fullContent.isEmpty()) {
+            page.setRawText("");
+            page.setMarkdownContent("");
+            pages.add(page);
+            return pages;
+        }
+        
+        // Convert to markdown with minimal processing
+        String markdownContent = convertToMarkdown(fullContent, null);
+        
+        page.setRawText(fullContent);
+        page.setMarkdownContent(markdownContent);
+        page.setWordCount(fullContent.split("\\s+").length);
+        page.setCharacterCount(fullContent.length());
+        
+        // Extract structured data
+        for (String line : lines) {
+            String trimmedLine = line.trim();
+            if (isLikelyHeader(trimmedLine)) {
+                page.addHeading("## " + trimmedLine);
+            } else if (trimmedLine.length() > 10) {
+                page.addParagraph(trimmedLine);
+            }
+        }
+        
+        pages.add(page);
+        return pages;
     }
 }
