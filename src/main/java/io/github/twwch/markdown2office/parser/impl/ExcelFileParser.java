@@ -10,10 +10,13 @@ import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.io.BufferedInputStream;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -32,12 +35,24 @@ public class ExcelFileParser implements FileParser {
         // Use BufferedInputStream to allow mark/reset for format detection
         try (BufferedInputStream bis = new BufferedInputStream(new FileInputStream(file))) {
             // Mark the stream to allow reset after detection
-            bis.mark(8);
+            bis.mark(100);
             
             // Read first few bytes to detect format
-            byte[] header = new byte[8];
+            byte[] header = new byte[100];
             int bytesRead = bis.read(header);
             bis.reset();
+            
+            // Check if it's XML (Excel 2003 XML format)
+            String headerStr = new String(header, 0, Math.min(bytesRead, 100), StandardCharsets.UTF_8);
+            if (headerStr.contains("<?xml") && (headerStr.contains("xmlns") || headerStr.contains("Workbook"))) {
+                // This is Excel 2003 XML format (SpreadsheetML)
+                ParsedDocument parsedDoc = parseExcel2003XML(bis, file.getName());
+                // Set file size if available
+                if (parsedDoc.getDocumentMetadata() != null) {
+                    parsedDoc.getDocumentMetadata().setFileSize(file.length());
+                }
+                return parsedDoc;
+            }
             
             // Detect format from header
             Workbook workbook;
@@ -77,11 +92,26 @@ public class ExcelFileParser implements FileParser {
             (BufferedInputStream) inputStream : new BufferedInputStream(inputStream);
         
         // Mark the stream to allow reset after detection
-        bis.mark(8);
+        bis.mark(100);
         
         // Read first few bytes to detect format
-        byte[] header = new byte[8];
+        byte[] header = new byte[100];
         int bytesRead = bis.read(header);
+        bis.reset();
+        
+        // Check if it's XML (Excel 2003 XML format)
+        String headerStr = new String(header, 0, Math.min(bytesRead, 100), StandardCharsets.UTF_8);
+        if (headerStr.contains("<?xml") && (headerStr.contains("xmlns") || headerStr.contains("Workbook"))) {
+            // This is Excel 2003 XML format (SpreadsheetML)
+            return parseExcel2003XML(bis, fileName);
+        }
+        
+        // Continue with existing logic for binary formats
+        bis.mark(8);
+        
+        // Re-read for binary format detection
+        header = new byte[8];
+        bytesRead = bis.read(header);
         bis.reset();
         
         // Detect format from header
@@ -336,5 +366,157 @@ public class ExcelFileParser implements FileParser {
             default:
                 return "";
         }
+    }
+    
+    /**
+     * Parse Excel 2003 XML format (SpreadsheetML)
+     */
+    private ParsedDocument parseExcel2003XML(InputStream inputStream, String fileName) throws IOException {
+        ParsedDocument parsedDoc = new ParsedDocument();
+        parsedDoc.setFileType(ParsedDocument.FileType.EXCEL);
+        
+        // Create metadata
+        DocumentMetadata metadata = new DocumentMetadata();
+        metadata.setFileName(fileName);
+        metadata.setFileType(ParsedDocument.FileType.EXCEL);
+        metadata.setDocumentFormat("Excel 2003 XML (SpreadsheetML)");
+        
+        StringBuilder content = new StringBuilder();
+        StringBuilder markdown = new StringBuilder();
+        List<ParsedDocument.ParsedTable> tables = new ArrayList<>();
+        int sheetCount = 0;
+        
+        // Parse XML content
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+            String line;
+            boolean inWorksheet = false;
+            boolean inTable = false;
+            boolean inRow = false;
+            String worksheetName = null;
+            List<String> currentRow = new ArrayList<>();
+            ParsedDocument.ParsedTable currentTable = null;
+            int rowCount = 0;
+            
+            while ((line = reader.readLine()) != null) {
+                line = line.trim();
+                
+                // Extract worksheet name
+                if (line.contains("<Worksheet") && line.contains("ss:Name=")) {
+                    int start = line.indexOf("ss:Name=\"") + 9;
+                    int end = line.indexOf("\"", start);
+                    if (end > start) {
+                        worksheetName = line.substring(start, end);
+                        inWorksheet = true;
+                        sheetCount++;
+                        markdown.append("## Sheet: ").append(worksheetName).append("\n\n");
+                        content.append("Sheet: ").append(worksheetName).append("\n");
+                    }
+                }
+                
+                // Start of table
+                if (line.contains("<Table")) {
+                    inTable = true;
+                    currentTable = new ParsedDocument.ParsedTable();
+                    if (worksheetName != null) {
+                        currentTable.setTitle(worksheetName);
+                    }
+                    rowCount = 0;
+                }
+                
+                // Start of row
+                if (line.contains("<Row") && inTable) {
+                    inRow = true;
+                    currentRow = new ArrayList<>();
+                }
+                
+                // Extract cell data
+                if (inRow && line.contains("<Data")) {
+                    int start = line.indexOf(">") + 1;
+                    int end = line.indexOf("</Data>");
+                    if (end > start) {
+                        String cellValue = line.substring(start, end);
+                        // Decode HTML entities
+                        cellValue = cellValue.replace("&lt;", "<")
+                                           .replace("&gt;", ">")
+                                           .replace("&amp;", "&")
+                                           .replace("&quot;", "\"")
+                                           .replace("&apos;", "'");
+                        currentRow.add(cellValue);
+                    } else if (line.contains("<Data") && line.contains("/>")) {
+                        // Empty cell
+                        currentRow.add("");
+                    }
+                }
+                
+                // End of row
+                if (line.contains("</Row>") && inRow) {
+                    inRow = false;
+                    if (!currentRow.isEmpty()) {
+                        if (rowCount == 0 && currentTable != null) {
+                            // First row as headers
+                            currentTable.setHeaders(new ArrayList<>(currentRow));
+                        } else if (currentTable != null) {
+                            // Data rows
+                            if (currentTable.getData() == null) {
+                                currentTable.setData(new ArrayList<>());
+                            }
+                            currentTable.getData().add(new ArrayList<>(currentRow));
+                        }
+                        
+                        // Add to content
+                        content.append(String.join("\t", currentRow)).append("\n");
+                        rowCount++;
+                    }
+                }
+                
+                // End of table
+                if (line.contains("</Table>") && inTable) {
+                    inTable = false;
+                    if (currentTable != null && currentTable.getHeaders() != null) {
+                        tables.add(currentTable);
+                        markdown.append(currentTable.toMarkdown()).append("\n\n");
+                    }
+                    currentTable = null;
+                }
+                
+                // End of worksheet
+                if (line.contains("</Worksheet>")) {
+                    inWorksheet = false;
+                    content.append("\n");
+                }
+            }
+        }
+        
+        // Set parsed content
+        parsedDoc.setContent(content.toString());
+        parsedDoc.setMarkdownContent(markdown.toString());
+        parsedDoc.setTables(tables);
+        
+        // Create a single page with all content
+        PageContent page = new PageContent(1);
+        page.setRawText(content.toString());
+        page.setMarkdownContent(markdown.toString());
+        page.setTables(tables);
+        
+        List<PageContent> pages = new ArrayList<>();
+        pages.add(page);
+        parsedDoc.setPages(pages);
+        
+        // Set metadata
+        metadata.setTotalPages(1);
+        metadata.setTotalSheets(sheetCount > 0 ? sheetCount : 1); // At least 1 sheet
+        metadata.setTotalTables(tables.size());
+        metadata.setTotalWords(content.toString().split("\\s+").length);
+        metadata.setTotalCharacters(content.toString().length());
+        
+        if (fileName != null) {
+            String title = fileName.replaceAll("\\.[^.]+$", "");
+            metadata.setTitle(title);
+            parsedDoc.setTitle(title);
+        }
+        
+        parsedDoc.setDocumentMetadata(metadata);
+        
+        return parsedDoc;
     }
 }

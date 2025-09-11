@@ -141,19 +141,12 @@ public class EnhancedParsingTest {
     @Test
     public void testExcelSheetBySheetExtraction() throws IOException {
         // Test Excel parser with an existing file if available
-        File excelFile = new File("demo.xlsx");
-        
-        if (!excelFile.exists()) {
-            System.out.println("Warning: demo.xlsx not found, skipping Excel test");
-            // Test that parser supports Excel files
-            ExcelFileParser parser = new ExcelFileParser();
-            assertTrue(parser.supports("test.xlsx"));
-            assertTrue(parser.supports("test.xls"));
-            return;
-        }
+        File excelFile = new File("demo.xls");
+
+        System.out.println("22222");
         
         // Parse Excel
-        ParsedDocument document = new ExcelFileParser().parse(excelFile);
+        ParsedDocument document = universalParser.parse(excelFile);
         
         // Check sheet-based extraction
         assertNotNull(document.getPages());

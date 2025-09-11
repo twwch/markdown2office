@@ -23,14 +23,14 @@ A Java SDK for converting Markdown documents to various office formats including
 <dependency>
     <groupId>io.github.twwch</groupId>
     <artifactId>markdown2office</artifactId>
-    <version>1.0.14</version>
+    <version>1.0.15</version>
 </dependency>
 ```
 
 ### Gradle
 
 ```gradle
-implementation 'io.github.twwch:markdown2office:1.0.14'
+implementation 'io.github.twwch:markdown2office:1.0.15'
 ```
 
 ## Usage
@@ -127,8 +127,8 @@ To release to Maven Central, you need to configure the following GitHub Secrets:
 
 1. Create and push a tag:
 ```bash
-git tag v1.0.14
-git push origin v1.0.14
+git tag v1.0.15
+git push origin v1.0.15
 ```
 
 2. The GitHub Action will automatically:
@@ -157,19 +157,19 @@ Apache License 2.0
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## File Parsing (New Feature)
+## File Parsing (Enhanced in v1.0.15)
 
 ### Overview
 
-The library now includes a powerful file parsing system that can extract content, metadata, and structure from various document formats:
+The library includes a powerful and enhanced file parsing system that can extract content, metadata, and structure from various document formats:
 
-- **PDF** (.pdf)
-- **Word** (.doc, .docx)
-- **Excel** (.xls, .xlsx)
+- **PDF** (.pdf) - With hidden layer filtering
+- **Word** (.doc, .docx) - Enhanced structure extraction
+- **Excel** (.xls, .xlsx) - Improved multi-sheet handling
 - **PowerPoint** (.ppt, .pptx)
-- **Text** (.txt)
-- **Markdown** (.md)
-- **CSV** (.csv)
+- **Text** (.txt) - Smart encoding detection
+- **Markdown** (.md) - Full CommonMark support
+- **CSV** (.csv) - Advanced encoding detection (UTF-8, GBK, GB2312, etc.)
 - And 20+ other formats via Apache Tika
 
 ### Basic Usage
@@ -275,7 +275,9 @@ ExcelFileParser excelParser = new ExcelFileParser();
 ParsedDocument excelDoc = excelParser.parse("spreadsheet.xlsx");
 ```
 
-#### PDF Hidden Layer Filtering (New in 1.0.14)
+#### Enhanced Features in v1.0.15
+
+##### PDF Hidden Layer Filtering
 
 The PDF parser now supports filtering out hidden layers, watermarks, and invisible text that may appear in some PDFs (e.g., from recruitment platforms like BOSS Zhipin).
 
@@ -334,6 +336,26 @@ for (ParsedTable table : document.getTables()) {
         System.out.println(String.join(" | ", row));
     }
 }
+```
+
+##### CSV Encoding Detection (New)
+
+The CSV parser now automatically detects and handles various character encodings, including Chinese encodings:
+
+```java
+import io.github.twwch.markdown2office.parser.impl.CsvFileParser;
+
+// Automatically detects encoding (UTF-8, GBK, GB2312, etc.)
+CsvFileParser csvParser = new CsvFileParser();
+ParsedDocument doc = csvParser.parse("chinese_data.csv");
+
+// The parser will:
+// 1. Detect BOM markers
+// 2. Try common encodings in order
+// 3. Validate content to ensure correct encoding
+// 4. Fall back gracefully if encoding cannot be determined
+
+String content = doc.getContent(); // Correctly decoded content
 ```
 
 #### Working with Excel Files
@@ -399,21 +421,33 @@ converter.convert(wordDoc.toMarkdown(), FileType.PDF, "document.pdf");
 
 ### Supported Features by Format
 
-| Format | Text | Tables | Metadata | Page Detection | Headings |
-|--------|------|--------|----------|----------------|----------|
-| PDF | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Word | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Excel | ✅ | ✅ | ✅ | ✅ (sheets) | ✅ |
-| PowerPoint | ✅ | ✅ | ✅ | ✅ (slides) | ✅ |
-| Text | ✅ | ❌ | Partial | ❌ | ❌ |
-| Markdown | ✅ | ✅ | ❌ | ❌ | ✅ |
-| CSV | ✅ | ✅ | Partial | ❌ | ❌ |
+| Format | Text Extraction | Table Parsing | Metadata | Structure Detection | Special Features (v1.0.15) |
+|--------|----------------|---------------|----------|--------------------|--------------------------|
+| **PDF** | ✅ Full text with formatting | ✅ Complex tables | ✅ Complete | ✅ Pages, headings, paragraphs | • Hidden layer filtering<br>• Watermark removal<br>• Invisible text detection |
+| **Word (.docx/.doc)** | ✅ Rich text preservation | ✅ Nested tables | ✅ Complete | ✅ Sections, headings, lists | • Style preservation<br>• Comment extraction<br>• Track changes support |
+| **Excel (.xlsx/.xls)** | ✅ Cell values & formulas | ✅ Native | ✅ Complete | ✅ Sheets as pages | • Formula evaluation<br>• Merged cell handling<br>• Multiple sheet support |
+| **PowerPoint (.pptx/.ppt)** | ✅ Slide content | ✅ Slide tables | ✅ Complete | ✅ Slides as pages | • Speaker notes<br>• Slide layout detection<br>• Shape text extraction |
+| **CSV** | ✅ Full content | ✅ Native | ⚠️ Limited | ❌ | • **Auto encoding detection (UTF-8, GBK, GB2312)**<br>• BOM handling<br>• Delimiter detection |
+| **Text (.txt)** | ✅ Plain text | ❌ | ⚠️ File info only | ❌ | • Encoding auto-detection<br>• Line break preservation |
+| **Markdown (.md)** | ✅ Formatted text | ✅ GFM tables | ❌ | ✅ Heading hierarchy | • CommonMark + GFM<br>• Code block preservation<br>• Task list support |
+| **RTF** | ✅ Rich text | ✅ | ⚠️ Basic | ⚠️ Partial | • Via Apache Tika |
+| **HTML** | ✅ Text content | ✅ | ⚠️ Basic | ✅ DOM structure | • Tag removal<br>• Link preservation |
+| **XML** | ✅ Text nodes | ⚠️ Structured data | ⚠️ Basic | ✅ Element hierarchy | • Via Apache Tika |
+| **Other formats** | ✅ Via Tika | ⚠️ Format dependent | ⚠️ Basic | ⚠️ Limited | • 20+ formats via Apache Tika |
+
+**Legend:**
+- ✅ Full support with comprehensive features
+- ⚠️ Partial support or limited functionality
+- ❌ Not supported
+- **Bold** items indicate recent enhancements in v1.0.15
 
 ### Performance Considerations
 
 - Large files are processed efficiently with streaming where possible
 - Page-based extraction allows processing documents without loading entire content into memory
 - Metadata is extracted without parsing full document content when possible
+- Smart encoding detection minimizes re-reading of files
+- Optimized table extraction for large Excel and CSV files
 
 ### Error Handling
 
