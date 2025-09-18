@@ -3,7 +3,7 @@ name: Release to Maven Central
 on:
   push:
     tags:
-      - 'v*'  # 触发条件：推送以 v 开头的 tag，如 v1.0.15
+      - 'v*'  # 触发条件：推送以 v 开头的 tag，如 v1.0.16
 
 jobs:
   release:

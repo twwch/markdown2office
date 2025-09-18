@@ -23,14 +23,14 @@ A Java SDK for converting Markdown documents to various office formats including
 <dependency>
     <groupId>io.github.twwch</groupId>
     <artifactId>markdown2office</artifactId>
-    <version>1.0.15</version>
+    <version>1.0.16</version>
 </dependency>
 ```
 
 ### Gradle
 
 ```gradle
-implementation 'io.github.twwch:markdown2office:1.0.15'
+implementation 'io.github.twwch:markdown2office:1.0.16'
 ```
 
 ## Usage
@@ -127,8 +127,8 @@ To release to Maven Central, you need to configure the following GitHub Secrets:
 
 1. Create and push a tag:
 ```bash
-git tag v1.0.15
-git push origin v1.0.15
+git tag v1.0.16
+git push origin v1.0.16
 ```
 
 2. The GitHub Action will automatically:
@@ -157,7 +157,7 @@ Apache License 2.0
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## File Parsing (Enhanced in v1.0.15)
+## File Parsing (Enhanced in v1.0.16)
 
 ### Overview
 
@@ -275,7 +275,7 @@ ExcelFileParser excelParser = new ExcelFileParser();
 ParsedDocument excelDoc = excelParser.parse("spreadsheet.xlsx");
 ```
 
-#### Enhanced Features in v1.0.15
+#### Enhanced Features in v1.0.16
 
 ##### PDF Hidden Layer Filtering
 
@@ -421,7 +421,7 @@ converter.convert(wordDoc.toMarkdown(), FileType.PDF, "document.pdf");
 
 ### Supported Features by Format
 
-| Format | Text Extraction | Table Parsing | Metadata | Structure Detection | Special Features (v1.0.15) |
+| Format | Text Extraction | Table Parsing | Metadata | Structure Detection | Special Features (v1.0.16) |
 |--------|----------------|---------------|----------|--------------------|--------------------------|
 | **PDF** | ✅ Full text with formatting | ✅ Complex tables | ✅ Complete | ✅ Pages, headings, paragraphs | • Hidden layer filtering<br>• Watermark removal<br>• Invisible text detection |
 | **Word (.docx/.doc)** | ✅ Rich text preservation | ✅ Nested tables | ✅ Complete | ✅ Sections, headings, lists | • Style preservation<br>• Comment extraction<br>• Track changes support |
@@ -439,7 +439,7 @@ converter.convert(wordDoc.toMarkdown(), FileType.PDF, "document.pdf");
 - ✅ Full support with comprehensive features
 - ⚠️ Partial support or limited functionality
 - ❌ Not supported
-- **Bold** items indicate recent enhancements in v1.0.15
+- **Bold** items indicate recent enhancements in v1.0.16
 
 ### Performance Considerations
 

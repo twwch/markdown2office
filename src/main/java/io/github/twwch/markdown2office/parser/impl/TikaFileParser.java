@@ -8,6 +8,7 @@ import org.apache.tika.Tika;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.parser.ParseContext;
+import org.apache.tika.parser.Parser;
 import org.apache.tika.sax.BodyContentHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,6 +17,8 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.BufferedInputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -76,24 +79,69 @@ public class TikaFileParser implements FileParser {
     
     private ParsedDocument extractContent(InputStream inputStream, String fileName) throws IOException {
         ParsedDocument parsedDoc = new ParsedDocument();
-        
+
         // Create and populate document metadata
         DocumentMetadata docMetadata = new DocumentMetadata();
         docMetadata.setFileName(fileName);
-        
+
+        // Wrap the input stream in a BufferedInputStream to ensure proper mark/reset support
+        BufferedInputStream bufferedInputStream = inputStream instanceof BufferedInputStream ?
+            (BufferedInputStream) inputStream : new BufferedInputStream(inputStream);
+
         try {
             // Use Tika to parse the document
             BodyContentHandler handler = new BodyContentHandler(-1); // No limit
             Metadata metadata = new Metadata();
             ParseContext context = new ParseContext();
-            AutoDetectParser parser = new AutoDetectParser();
-            
+
             // Set filename in metadata for better type detection
             if (fileName != null) {
                 metadata.set("resourceName", fileName);
+                metadata.set("Content-Disposition", "inline; filename=\"" + fileName + "\"");
+
+                // For HTML files, bypass auto-detection and parse directly
+                if (fileName.toLowerCase().endsWith(".html") || fileName.toLowerCase().endsWith(".htm")) {
+                    // Mark the stream for reset if needed
+                    bufferedInputStream.mark(Integer.MAX_VALUE);
+
+                    // Read the HTML content directly - keep original content
+                    byte[] bytes = bufferedInputStream.readAllBytes();
+                    String content = new String(bytes, StandardCharsets.UTF_8);
+
+                    // Keep the original HTML content as-is
+                    parsedDoc.setContent(content);
+
+                    // Convert content to markdown with basic formatting
+                    String markdownContent = convertToMarkdown(content, fileName);
+                    parsedDoc.setMarkdownContent(markdownContent);
+
+                    // Extract metadata
+                    extractMetadata(metadata, parsedDoc, fileName, docMetadata);
+
+                    // Set file type
+                    setFileType(parsedDoc, metadata, fileName, docMetadata);
+
+                    // Create pages from content
+                    List<PageContent> pages = createPages(content, markdownContent);
+                    parsedDoc.setPages(pages);
+
+                    // Set document metadata
+                    docMetadata.setTotalWords(content.split("\\s+").length);
+                    docMetadata.setTotalCharacters(content.length());
+                    docMetadata.setTotalPages(pages.size());
+                    parsedDoc.setDocumentMetadata(docMetadata);
+
+                    // Add page count to metadata
+                    parsedDoc.addMetadata("Page Count", String.valueOf(pages.size()));
+
+                    return parsedDoc;
+                }
             }
-            
-            parser.parse(inputStream, handler, metadata, context);
+
+            // Use AutoDetectParser for other formats
+            AutoDetectParser parser = new AutoDetectParser();
+            context.set(Parser.class, parser);
+            parser.parse(bufferedInputStream, handler, metadata, context);
             
             String content = handler.toString();
             parsedDoc.setContent(content);
@@ -237,20 +285,26 @@ public class TikaFileParser implements FileParser {
         if (content == null || content.trim().isEmpty()) {
             return "";
         }
-        
+
+        // For HTML files, return content as-is without conversion
+        if (fileName != null && (fileName.toLowerCase().endsWith(".html") || fileName.toLowerCase().endsWith(".htm"))) {
+            return content;
+        }
+
+        // For other formats, do basic markdown conversion
         StringBuilder markdown = new StringBuilder();
         String[] paragraphs = content.split("\n\n+");
-        
+
         for (String paragraph : paragraphs) {
             paragraph = paragraph.trim();
             if (paragraph.isEmpty()) {
                 continue;
             }
-            
+
             // Basic formatting - this is very simple and could be enhanced
             // Remove multiple spaces and clean up
             paragraph = paragraph.replaceAll("\\s+", " ").trim();
-            
+
             // Check if it looks like a heading (short line, potentially all caps or title case)
             if (isLikelyHeading(paragraph)) {
                 markdown.append("## ").append(paragraph).append("\n\n");
@@ -258,7 +312,7 @@ public class TikaFileParser implements FileParser {
                 markdown.append(paragraph).append("\n\n");
             }
         }
-        
+
         return markdown.toString();
     }
     
@@ -280,41 +334,39 @@ public class TikaFileParser implements FileParser {
     
     private List<PageContent> createPages(String content, String markdownContent) {
         List<PageContent> pages = new ArrayList<>();
-        
-        // For Tika-parsed files, put all content in a single page
+
+        // Always put all content in a single page
         PageContent page = new PageContent(1);
-        
+
         if (content == null || content.trim().isEmpty()) {
             page.setRawText("");
             page.setMarkdownContent("");
             pages.add(page);
             return pages;
         }
-        
+
+        // Set the raw content as-is
         page.setRawText(content);
         page.setMarkdownContent(markdownContent);
-        page.setWordCount(content.split("\\s+").length);
-        page.setCharacterCount(content.length());
-        
-        // Extract structured data
-        String[] paragraphs = content.split("\n\n+");
-        for (String paragraph : paragraphs) {
-            paragraph = paragraph.trim();
-            if (paragraph.isEmpty()) {
-                continue;
-            }
-            
-            // Remove multiple spaces and clean up
-            paragraph = paragraph.replaceAll("\\s+", " ").trim();
-            
-            // Check if it looks like a heading
-            if (isLikelyHeading(paragraph)) {
-                page.addHeading("## " + paragraph);
-            } else if (paragraph.length() > 10) {
-                page.addParagraph(paragraph);
-            }
+
+        // Calculate word count (handle HTML content appropriately)
+        String textForCounting = content;
+        if (content.contains("<") && content.contains(">")) {
+            // For HTML content, strip tags for word counting only
+            textForCounting = content.replaceAll("<[^>]+>", " ")
+                                    .replaceAll("&[^;]+;", " ")
+                                    .replaceAll("\\s+", " ")
+                                    .trim();
         }
-        
+        page.setWordCount(textForCounting.split("\\s+").length);
+        page.setCharacterCount(content.length());
+
+        // Don't extract structured data, keep content as-is
+        // Just add the whole content as a single paragraph
+        if (!content.trim().isEmpty()) {
+            page.addParagraph(content);
+        }
+
         pages.add(page);
         return pages;
     }
